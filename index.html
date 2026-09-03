@@ -505,7 +505,8 @@ let state = {
     csvCharset: 'utf8bom',
     includeImagesInCsv: true, // 画像をBase64としてCSVへ埋め込むか
     csvImageCount: 10, // CSVへ埋め込む画像の最大枚数（1〜10）
-    anthropicApiKey: '' // AI解析用のAnthropic APIキー（外部公開時はユーザー自身のキーが必要）
+    anthropicApiKey: '', // 旧設定（Gemini移行後は未使用。過去の保存データとの互換性のため残置）
+    geminiApiKey: '' // AI解析用のGoogle Gemini APIキー（外部公開時はユーザー自身のキーが必要）
   },
   selectedProductId: null,
   activeTab: 'images', // images | mgmt | ai | desc
@@ -558,7 +559,6 @@ function newProduct(){
 
 // ▼▼▼ ここにご自身のFirebaseプロジェクトの設定値を入力してください（Auth・Firestore用） ▼▼▼
 // Firebaseコンソール → プロジェクトの設定 → マイアプリ → SDKの設定と構成 で確認できます。
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyCXKgEMSV6v8ZFsQjkdVHnt9HhZ-D2Kl1c",
   authDomain: "csv-tool-c2909.firebaseapp.com",
@@ -1045,21 +1045,83 @@ const AI_SYSTEM_PROMPT =
 
 {"modelNumber":"","modelNumberConfidence":0,"manufacturer":"","manufacturerConfidence":0,"productionYear":"","productionYearConfidence":0,"applianceType":"","vacuumType":"","riceCookerType":"","categoryReasoning":"","categoryConfidence":0,"notes":"","multipleProductsWarning":false}`;
 
-const CLAUDE_MODEL = 'claude-sonnet-4-6';
+// AI解析エンジン：Google Gemini API（画像対応モデル）を使用する。
+// モデル名はここ1箇所だけで管理する（将来のモデル変更時はここだけ書き換えればよい）。
+const GEMINI_MODEL = 'gemini-3.5-flash';
 
-// このツールを外部サイト（GitHub Pages等）で公開して使う場合、Anthropic APIへは
-// ユーザー自身のAPIキー＋ブラウザ直接アクセス用ヘッダーで呼び出す必要がある
-// （Claude.ai上のアーティファクトとして開いた場合とは異なり、鍵なしでは呼び出せない）。
-function hasAnthropicApiKey(){
-  return !!(state.settings.anthropicApiKey && state.settings.anthropicApiKey.trim());
+// このツールを外部サイト（GitHub Pages等）で公開して使う場合、Gemini APIへは
+// ユーザー自身のAPIキーが必要（ブラウザから直接呼び出す構成のため）。
+function hasGeminiApiKey(){
+  return !!(state.settings.geminiApiKey && state.settings.geminiApiKey.trim());
 }
-function anthropicHeaders(){
-  return {
-    'Content-Type': 'application/json',
-    'x-api-key': state.settings.anthropicApiKey.trim(),
-    'anthropic-version': '2023-06-01',
-    'anthropic-dangerous-direct-browser-access': 'true'
-  };
+
+function geminiEndpoint(){
+  const key = encodeURIComponent(state.settings.geminiApiKey.trim());
+  return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
+}
+
+// Gemini APIのHTTPエラーを、原因が分かりやすい日本語メッセージに変換する
+async function describeGeminiError(response){
+  let bodyText = '';
+  try{ bodyText = await response.text(); }catch(e){ /* 無視 */ }
+  let apiMessage = '';
+  try{
+    const parsed = JSON.parse(bodyText);
+    apiMessage = (parsed.error && parsed.error.message) ? parsed.error.message : '';
+  }catch(e){ /* JSONでない場合はそのまま */ }
+
+  if(response.status === 400) return 'リクエスト内容に問題があります（400）。' + (apiMessage || 'APIキーの形式や画像データを確認してください。');
+  if(response.status === 401 || response.status === 403) return 'APIキーが正しくないか、権限がありません（' + response.status + '）。設定 → AI設定でキーを確認してください。' + (apiMessage ? ' 詳細: ' + apiMessage : '');
+  if(response.status === 429) return 'Gemini APIの利用制限に達した可能性があります（429）。少し時間を置いてから再実行してください。';
+  if(response.status >= 500) return 'Gemini API側で一時的な問題が発生しています（' + response.status + '）。しばらくしてから再実行してください。';
+  return 'Gemini APIエラー（' + response.status + '）' + (apiMessage ? ': ' + apiMessage : '');
+}
+
+// GeminiのレスポンスからJSON部分だけを安全に抽出する（前後に説明文が付いた場合や
+// ```json ... ``` で囲まれた場合にも対応する）
+function extractJsonFromText(text){
+  let raw = (text || '').trim();
+  raw = raw.replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
+  try{
+    return JSON.parse(raw);
+  }catch(e){
+    const m = raw.match(/\{[\s\S]*\}/);
+    if(m){
+      try{ return JSON.parse(m[0]); }catch(e2){ /* 失敗 */ }
+    }
+  }
+  throw new Error('AIの応答をJSONとして解釈できませんでした');
+}
+
+// 画像（複数枚）とプロンプトをGeminiへ送信し、解析結果のJSONを返す共通処理。
+// AIはこの認識処理だけを担当し、CSVやHTML・商品名の生成には一切関与しない。
+async function callGeminiVisionJson(promptText, images){
+  const parts = [{ text: promptText }];
+  for(const img of images){
+    const durl = await getImageDataUrl(img);
+    if(!durl) continue;
+    const match = /^data:(image\/[a-zA-Z]+);base64,(.*)$/.exec(durl);
+    if(match) parts.push({ inline_data: { mime_type: match[1], data: match[2] } });
+  }
+
+  const response = await fetch(geminiEndpoint(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] },
+      contents: [{ role: 'user', parts }],
+      generationConfig: { responseMimeType: 'application/json' }
+    })
+  });
+
+  if(!response.ok){
+    throw new Error(await describeGeminiError(response));
+  }
+  const data = await response.json();
+  const candidate = (data.candidates || [])[0];
+  const textPart = candidate && candidate.content && (candidate.content.parts || []).find(p => typeof p.text === 'string');
+  if(!textPart) throw new Error('AIからの応答が空でした');
+  return extractJsonFromText(textPart.text);
 }
 
 async function runAiAnalysis(product){
@@ -1067,8 +1129,8 @@ async function runAiAnalysis(product){
     showToast('画像をアップロードしてから解析してください');
     return false;
   }
-  if(!hasAnthropicApiKey()){
-    showToast('AI解析にはAnthropic APIキーの設定が必要です（設定 → AI設定）');
+  if(!hasGeminiApiKey()){
+    showToast('AI解析にはGoogle Gemini APIキーの設定が必要です（設定 → AI設定）');
     return false;
   }
   product.aiStatus = 'loading';
@@ -1076,28 +1138,10 @@ async function runAiAnalysis(product){
   render();
   try{
     const imagesToSend = product.images.slice(0,10);
-    const content = [{ type:'text', text:'これらは同一商品の写真です（本体・銘板の接写・別アングルなどを含みます）。すべての画像を突き合わせて確認し、型番・メーカー・製造年の文字情報と、商品カテゴリ（掃除機か炊飯器か、その種類）の視覚的な分類の両方を行ってください。' }];
-    for(const img of imagesToSend){
-      const durl = await getImageDataUrl(img);
-      if(!durl) continue;
-      const match = /^data:(image\/[a-zA-Z]+);base64,(.*)$/.exec(durl);
-      if(match) content.push({ type:'image', source:{ type:'base64', media_type: match[1], data: match[2] } });
-    }
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers: anthropicHeaders(),
-      body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 1200, system: AI_SYSTEM_PROMPT, messages:[{ role:'user', content }] })
-    });
-    if(!response.ok){
-      const errText = await response.text().catch(()=> '');
-      throw new Error('APIエラー: ' + response.status + (errText ? ' - ' + errText.slice(0,200) : ''));
-    }
-    const data = await response.json();
-    const textBlock = (data.content || []).find(b=>b.type==='text');
-    if(!textBlock) throw new Error('AIからの応答が空でした');
-    let raw = textBlock.text.trim();
-    raw = raw.replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
-    const parsed = JSON.parse(raw);
+    const parsed = await callGeminiVisionJson(
+      'これらは同一商品の写真です（本体・銘板の接写・別アングルなどを含みます）。すべての画像を突き合わせて確認し、型番・メーカー・製造年の文字情報と、商品カテゴリ（掃除機か炊飯器か、その種類）の視覚的な分類の両方を行ってください。',
+      imagesToSend
+    );
 
     product.info.modelNumber = parsed.modelNumber || '';
     product.info.manufacturer = parsed.manufacturer || '';
@@ -1121,7 +1165,7 @@ async function runAiAnalysis(product){
   }catch(e){
     console.error(e);
     product.aiStatus = 'error';
-    product.aiError = '解析に失敗しました。手動で型番・メーカー・製造年を入力してください（' + e.message + '）';
+    product.aiError = 'Gemini AI解析に失敗しました。手動で型番・メーカー・製造年を入力してください（' + e.message + '）';
     return false;
   }finally{
     render();
@@ -2056,13 +2100,13 @@ function renderTemplateSettings(){
 
 function renderAiSettings(){
   return `
-  <p class="card-desc">画像のAI認識には、Anthropic（Claude）のAPIを直接利用します。このツールは外部サイトとして公開されているため、
-  <a href="https://console.anthropic.com/" target="_blank" rel="noopener">Anthropicコンソール</a>で取得したご自身のAPIキーが必要です
-  （利用量に応じた従量課金です。Anthropic側で支払い方法の登録が必要になります）。</p>
+  <p class="card-desc">画像のAI認識にはGoogle Gemini APIを使用します。
+  <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>で取得したAPIキーを入力してください
+  （利用量に応じた従量課金です。無料枠がありますが、内容によってはGoogle側で支払い方法の登録が必要になる場合があります）。</p>
   <div class="field" style="max-width:460px;">
-    <label>Anthropic APIキー</label>
-    <input type="password" data-action="edit-anthropic-key" value="${escapeAttr(state.settings.anthropicApiKey)}" placeholder="sk-ant-...">
-    <p class="hint warn">⚠️ このキーは設定として全端末で共有されます（このツール全体のセキュリティモデルと同様、アクセスできる人は誰でも閲覧・利用できます）。他人と共有する環境では取り扱いにご注意ください。</p>
+    <label>Google Gemini APIキー</label>
+    <input type="password" data-action="edit-gemini-key" value="${escapeAttr(state.settings.geminiApiKey)}" placeholder="AIza...">
+    <p class="hint warn">⚠️ このツールはブラウザからGemini APIを直接呼び出します。APIキーを共有設定に保存する場合、同じツールを利用できる人がAPIキーを利用できる可能性があります。他人と共有する環境では取り扱いにご注意ください。</p>
   </div>
   <div class="btn-row" style="margin:10px 0;">
     <button class="btn" data-action="ai-test">接続テスト</button>
@@ -2377,23 +2421,23 @@ function handleAction(action, el, e){
     }
     case 'ai-test': {
       const resultEl = document.getElementById('ai-test-result');
-      if(!hasAnthropicApiKey()){
+      if(!hasGeminiApiKey()){
         if(resultEl) resultEl.textContent = '✗ APIキーが未入力です';
         break;
       }
       if(resultEl) resultEl.textContent = '接続確認中…';
-      fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST', headers: anthropicHeaders(),
-        body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens:10, messages:[{role:'user',content:'ok'}] })
+      fetch(geminiEndpoint(), {
+        method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ contents:[{ role:'user', parts:[{ text:'ok' }] }] })
       }).then(async r=>{
         if(!resultEl) return;
-        if(r.ok){ resultEl.textContent = '✓ 接続できました'; }
-        else{ const t = await r.text().catch(()=>''); resultEl.textContent = '✗ エラー: ' + r.status + (t?(' - '+t.slice(0,150)):''); }
-      }).catch(()=>{ if(resultEl) resultEl.textContent = '✗ 接続できませんでした'; });
+        if(r.ok){ resultEl.textContent = '✓ Gemini APIへの接続に成功しました'; }
+        else{ resultEl.textContent = '⚠ Gemini APIへの接続に失敗しました: ' + (await describeGeminiError(r)); }
+      }).catch(()=>{ if(resultEl) resultEl.textContent = '⚠ Gemini APIへの接続に失敗しました（ネットワークエラー）'; });
       break;
     }
-    case 'edit-anthropic-key': {
-      state.settings.anthropicApiKey = el.value;
+    case 'edit-gemini-key': {
+      state.settings.geminiApiKey = el.value;
       scheduleSaveSettings();
       break;
     }
@@ -2406,7 +2450,7 @@ function handleAction(action, el, e){
 async function runBatchAnalysis(){
   const targets = state.products.filter(p=>p.aiStatus==='idle' || p.aiStatus==='error');
   if(!targets.length){ showToast('解析対象の商品がありません'); return; }
-  if(!hasAnthropicApiKey()){ showToast('AI解析にはAnthropic APIキーの設定が必要です（設定 → AI設定）'); return; }
+  if(!hasGeminiApiKey()){ showToast('AI解析にはGoogle Gemini APIキーの設定が必要です（設定 → AI設定）'); return; }
   state.batch = { running:true, index:0, total: targets.length, stage:'準備中…', log:[] };
   render();
   for(let i=0;i<targets.length;i++){

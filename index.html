@@ -483,6 +483,407 @@ Yahoo!かんたん決済
 
 const PLACEHOLDER_TEXT = '貼り付け！';
 
+/* ---------- 5b. カテゴリー別テンプレート（試作：掃除機・炊飯器のみ専用化） ----------
+   それ以外のカテゴリーは従来通り DESCRIPTION_TEMPLATE（「貼り付け！」置換方式）を使用する。
+   将来カテゴリーを追加する場合は、generateProductTitle / generateProductDescription に
+   分岐を追加していく想定。 */
+
+const VACUUM_DESCRIPTION_TEMPLATE =
+`<BR><CENTER>
+<FONT COLOR=#003300 SIZE=5><B>
+{{PRODUCT_NAME}}
+</B></FONT><BR><BR>
+<TABLE WIDTH=600 CELLPADDING=2 CELLSPACING=2 BGCOLOR=#669900>
+<TR><TD BGCOLOR=#FFFFFF>
+<TABLE CELLSPACING=3 CELLPADDING=4 BORDER=0 WIDTH=100%>
+<TR><TD BGCOLOR=#DEEFA5 COLSPAN=2 ALIGN=left>
+<B><FONT COLOR=#000000 SIZE=3>
+□商品詳細
+</FONT></B>
+</TD></TR>
+<TR>
+<TD WIDTH=5%></TD>
+<TD WIDTH=95% ALIGN=left>
+<FONT COLOR=#333333 SIZE=3>
+<BR>
+・電源が入るか。→{{POWER_CHECK}}<BR>
+・ヘッドのブラシが回転するか。→{{BRUSH_CHECK}}<BR>
+・吸い込みに問題がないか。→{{SUCTION_CHECK}}<BR>
+<BR>
+・備考{{VACUUM_NOTE}}<BR>
+<BR>
+※必ず入札前に最後までお読みください。また、入札された段階で、記入内容に同意したものと判断いたしますので、熟読の上ご入札いただくようお願いいたします。<BR>
+<BR>
+※落札をされた後に返品をされる方が大変多く見受けられます。<BR>
+商品の説明欄を必ず熟読いただき、商品に不備があった場合以外は返品を受け付けませんのであらかじめご了承ください。<BR>
+<BR>
+※メーカーや品番は記載ミスがある場合がございますので、必ず写真をご参考ください。<BR>
+<BR>
+・画像に写っている商品がすべてとなります。パーツの有無は写真参照してください。パーツの欠品等わかりかねます。予めご了承くださいませ。<BR>
+<BR>
+・当商品の正常な動作や操作方法等詳しくは把握しておりません。細かな動作状況まではわかりかねますのでご了承ください。<BR>
+<BR>
+・傷や汚れ、剥がれ、凹み等がございます。写真よりご確認ください。<BR>
+<BR>
+・簡易的に清掃を行っておりますが、除去しきれない汚れや傷等、ほこり、髪の毛ございますので、商品画像をご確認ください。<BR>
+<BR>
+・ノークレーム・ノーリターンでお願いいたします。
+</FONT>
+</TD>
+</TR>
+</TABLE>
+<TABLE CELLSPACING=3 CELLPADDING=4 BORDER=0 WIDTH=100%>
+<TR><TD BGCOLOR=#DEEFA5 COLSPAN=2 ALIGN=left>
+<B><FONT COLOR=#000000 SIZE=3>
+□支払詳細
+</FONT></B>
+</TD></TR>
+<TR>
+<TD WIDTH=5%></TD>
+<TD WIDTH=95% ALIGN=left>
+<FONT COLOR=#333333 SIZE=3>
+Yahoo!かんたん決済
+</FONT>
+</TD>
+</TR>
+</TABLE>
+<TABLE CELLSPACING=3 CELLPADDING=4 BORDER=0 WIDTH=100%>
+<TR><TD BGCOLOR=#DEEFA5 COLSPAN=2 ALIGN=left>
+<B><FONT COLOR=#000000 SIZE=3>
+□発送詳細
+</FONT></B>
+</TD></TR>
+<TR>
+<TD WIDTH=5%></TD>
+<TD WIDTH=95% ALIGN=left>
+<FONT COLOR=#333333 SIZE=3>
+<BR>佐川急便140サイズ（関西発）<BR>
+<BR>
+・着払い発送、代金引換は対応しておりません。<BR>
+<BR>
+・「ヤフネコ!パック」「ゆうパック・ゆうパケット（おてがる版）」等の取り扱いは対応しておりません。<BR>
+<BR>
+・元払いでの発送のみとなります。<BR>
+<BR>
+・直接のお取引は受け付けておりません。<BR>
+<BR>
+・離島の場合は別途中継手数料がかかります。<BR>
+<BR>
+<BR>※送料について<BR>
+<BR>
+物価高騰による運送会社の運賃値上げに伴い、送料を改定しております。<BR>
+記載の送料をご確認・ご納得のうえご入札をお願いいたします。<BR>
+<BR>
+<BR>------------------------------------------------------------------<BR>
+<BR>【北海道】<BR>
+<BR>・3090円<BR>
+<BR>【北東北】<BR>
+<BR>・2570円<BR>
+<BR>【南東北】<BR>
+<BR>・2440円<BR>
+<BR>【関東】【信越】【四国】【北九州】【南九州】<BR>
+<BR>・2310円<BR>
+<BR>【東海】【北陸】【関西】【中国】<BR>
+<BR>・2180円<BR>
+<BR>【沖縄】<BR>
+<BR>・6083円<BR>
+<BR>------------------------------------------------------------------<BR>
+</FONT>
+</TD>
+</TR>
+</TABLE>
+<TABLE CELLSPACING=3 CELLPADDING=4 BORDER=0 WIDTH=100%>
+<TR><TD BGCOLOR=#DEEFA5 COLSPAN=2 ALIGN=left>
+<B><FONT COLOR=#000000 SIZE=3>
+□注意事項
+</FONT></B>
+</TD></TR>
+<TR>
+<TD WIDTH=5%></TD>
+<TD WIDTH=95% ALIGN=left>
+<FONT COLOR=#333333 SIZE=3>
+・マイナス評価の方、新規の方は入札をご遠慮ください。<BR>
+<BR>
+・シミや汚れ、ヒビ、欠け、傷などはあらかじめチェックしておりますが、見落としがある場合がございます。<BR>
+<BR>
+・中古・ジャンクの商品につきまして、細かい傷や汚れなどが気になる方や、神経質な方は入札をご遠慮ください。<BR>
+<BR>
+・撮影時の光の加減や、お使いのPCの環境などにより、実際の商品と色合い等が異なる場合がございますのでご了承ください。<BR>
+<BR>
+・ご落札頂いた後は、落札者様からのご連絡となります。お手数ですが、必要事項をご入力いただきますようお願い申し上げます。また、土・日・祝日はお休みをいただいておりますので、ご連絡が遅くなってしまう場合がございます。何卒ご了承ください。<BR>
+<BR>
+・ご落札後３営業日以内に、お名前・ご住所・ご連絡先をご連絡いただけない場合や、ご落札後７日以内に入金が確認できなかった場合は、お取引の意思がないと判断させていただくこととなり、落札者様都合にてキャンセルさせていただきますので、ご了承願います。<BR><BR>
+・返品をされる場合は、送料は落札者様のご負担となります。ご了承ください。
+</FONT>
+</TD>
+</TR>
+</TABLE>
+</TD></TR></TABLE>
+<BR>
+<SMALL></SMALL><A HREF=https://payment.yahoo.co.jp/ TARGET=new>Yahoo!かんたん決済（クレカ・ネットバンク）がご利用いただけます</A><BR><BR>
+<FONT COLOR=#999999 SIZE=1>+ + +　この商品説明は</FONT> <A HREF=https://www.auclinks.com/ TARGET=new><FONT COLOR=#666666 SIZE=1>オークションプレートメーカー２</FONT></A> <FONT COLOR=#999999 SIZE=1>で作成しました 　+ + +</FONT><FONT COLOR=#FFFFFF SIZE=1><BR>No.202.001.006</FONT><BR>
+<BR>
+<CENTER></CENTER></CENTER>`;
+
+const RICE_COOKER_DETAIL_SECTION =
+`<BR><CENTER>
+<FONT COLOR=#003300 SIZE=5><B>
+{{PRODUCT_NAME}}
+</B></FONT><BR><BR>
+<TABLE WIDTH=600 CELLPADDING=2 CELLSPACING=2 BGCOLOR=#669900>
+<TR><TD BGCOLOR=#FFFFFF>
+<TABLE CELLSPACING=3 CELLPADDING=4 BORDER=0 WIDTH=100%>
+<TR><TD BGCOLOR=#DEEFA5 COLSPAN=2 ALIGN=left>
+<B><FONT COLOR=#000000 SIZE=3>
+□商品詳細
+</FONT></B>
+</TD></TR>
+<TR>
+<TD WIDTH=5%></TD>
+<TD WIDTH=95% ALIGN=left>
+<FONT COLOR=#333333 SIZE=3>
+<BR>
+・通電、炊飯機能確認済。<BR>
+<BR>
+・備考{{RICE_NOTE}}<BR>
+<BR>
+※検品時に使用した水道水が残っていますがご了承くださいますようお願いいたします。<BR>
+<BR>
+※必ず入札前に最後までお読みください。また、入札された段階で、記入内容に同意したものと判断いたしますので、熟読の上ご入札いただくようお願いいたします。<BR>
+<BR>
+※落札をされた後に返品をされる方が大変多く見受けられます。<BR>
+商品の説明欄を必ず熟読いただき、商品に不備があった場合以外は返品を受け付けませんのであらかじめご了承ください。<BR>
+<BR>
+※メーカーや品番は記載ミスがある場合がございますので、必ず写真をご参考ください。<BR>
+<BR>
+・画像に写っている商品がすべてとなります。パーツの有無は写真参照してください。パーツの欠品等わかりかねます。予めご了承くださいませ。<BR>
+<BR>
+・当商品の正常な動作や操作方法等詳しくは把握しておりません。細かな動作状況まではわかりかねますのでご了承ください。<BR>
+<BR>
+・本体は、傷や汚れ、剥がれ、凹み等がございます。写真よりご確認ください。<BR>
+<BR>
+・簡易的に清掃を行っておりますが、除去しきれない汚れや傷等ございますので、商品画像をご確認ください。<BR>
+<BR>
+・通電確認、炊飯機能の動作確認を行っております。<BR>
+<BR>
+・ノークレーム・ノーリターンでお願いいたします。
+</FONT>
+</TD>
+</TR>
+</TABLE>
+`;
+
+// 支払詳細・注意事項・フッターは既存テンプレートと共通（試作段階では掃除機・炊飯器・既存カテゴリーで同じものを使う）
+const SHARED_PAYMENT_SECTION =
+`<TABLE CELLSPACING=3 CELLPADDING=4 BORDER=0 WIDTH=100%>
+<TR><TD BGCOLOR=#DEEFA5 COLSPAN=2 ALIGN=left>
+<B><FONT COLOR=#000000 SIZE=3>
+□支払詳細
+</FONT></B>
+</TD></TR>
+<TR>
+<TD WIDTH=5%></TD>
+<TD WIDTH=95% ALIGN=left>
+<FONT COLOR=#333333 SIZE=3>
+Yahoo!かんたん決済
+</FONT>
+</TD>
+</TR>
+</TABLE>
+`;
+
+const SHARED_NOTICE_AND_FOOTER =
+`<TABLE CELLSPACING=3 CELLPADDING=4 BORDER=0 WIDTH=100%>
+<TR><TD BGCOLOR=#DEEFA5 COLSPAN=2 ALIGN=left>
+<B><FONT COLOR=#000000 SIZE=3>
+□注意事項
+</FONT></B>
+</TD></TR>
+<TR>
+<TD WIDTH=5%></TD>
+<TD WIDTH=95% ALIGN=left>
+<FONT COLOR=#333333 SIZE=3>
+・マイナス評価の方、新規の方は入札をご遠慮ください。<BR>
+<BR>
+・シミや汚れ、ヒビ、欠け、傷などはあらかじめチェックしておりますが、見落としがある場合がございます。<BR>
+<BR>
+・中古・ジャンクの商品につきまして、細かい傷や汚れなどが気になる方や、神経質な方は入札をご遠慮ください。<BR>
+<BR>
+・撮影時の光の加減や、お使いのPCの環境などにより、実際の商品と色合い等が異なる場合がございますのでご了承ください。<BR>
+<BR>
+・ご落札頂いた後は、落札者様からのご連絡となります。お手数ですが、必要事項をご入力いただきますようお願い申し上げます。また、土・日・祝日はお休みをいただいておりますので、ご連絡が遅くなってしまう場合がございます。何卒ご了承ください。<BR>
+<BR>
+・ご落札後３営業日以内に、お名前・ご住所・ご連絡先をご連絡いただけない場合や、ご落札後７日以内に入金が確認できなかった場合は、お取引の意思がないと判断させていただくこととなり、落札者様都合にてキャンセルさせていただきますので、ご了承願います。<BR><BR>
+・返品をされる場合は、送料は落札者様のご負担となります。ご了承ください。
+</FONT>
+</TD>
+</TR>
+</TABLE>
+</TD></TR></TABLE>
+<BR>
+<SMALL></SMALL><A HREF=https://payment.yahoo.co.jp/ TARGET=new>Yahoo!かんたん決済（クレカ・ネットバンク）がご利用いただけます</A><BR><BR>
+<FONT COLOR=#999999 SIZE=1>+ + +　この商品説明は</FONT> <A HREF=https://www.auclinks.com/ TARGET=new><FONT COLOR=#666666 SIZE=1>オークションプレートメーカー２</FONT></A> <FONT COLOR=#999999 SIZE=1>で作成しました 　+ + +</FONT><FONT COLOR=#FFFFFF SIZE=1><BR>No.202.001.006</FONT><BR>
+<BR>
+<CENTER></CENTER></CENTER>`;
+
+// 炊飯器：箱サイズ別の発送詳細セクション（100サイズ／140サイズ）
+const RICE_SHIPPING_SECTION_100 =
+`<TABLE CELLSPACING=3 CELLPADDING=4 BORDER=0 WIDTH=100%>
+<TR><TD BGCOLOR=#DEEFA5 COLSPAN=2 ALIGN=left>
+<B><FONT COLOR=#000000 SIZE=3>
+□発送詳細
+</FONT></B>
+</TD></TR>
+<TR>
+<TD WIDTH=5%></TD>
+<TD WIDTH=95% ALIGN=left>
+<FONT COLOR=#333333 SIZE=3>
+<BR>佐川急便100サイズ（関西発）<BR>
+<BR>
+・着払い発送、代金引換は対応しておりません。<BR>
+<BR>
+・「ヤフネコ!パック」「ゆうパック・ゆうパケット（おてがる版）」等の取り扱いは対応しておりません。<BR>
+<BR>
+・元払いでの発送のみとなります。<BR>
+<BR>
+・直接のお取引は受け付けておりません。<BR>
+<BR>
+・離島の場合は別途中継手数料がかかります。<BR>
+<BR>
+<BR>※送料について<BR>
+<BR>
+物価高騰による運送会社の運賃値上げに伴い、送料を改定しております。<BR>
+記載の送料をご確認・ご納得のうえご入札をお願いいたします。<BR>
+<BR>
+<BR>------------------------------------------------------------------<BR>
+<BR>【北海道】<BR>
+<BR>・2350円<BR>
+<BR>【北東北】<BR>
+<BR>・1880円<BR>
+<BR>【南東北】<BR>
+<BR>・1740円<BR>
+<BR>【関東】【信越】【四国】【北九州】【南九州】<BR>
+<BR>・1630円<BR>
+<BR>【東海】【北陸】【関西】【中国】<BR>
+<BR>・1520円<BR>
+<BR>【沖縄】<BR>
+<BR>・3949円<BR>
+<BR>------------------------------------------------------------------<BR>
+</FONT>
+</TD>
+</TR>
+</TABLE>
+`;
+
+const RICE_SHIPPING_SECTION_140 =
+`<TABLE CELLSPACING=3 CELLPADDING=4 BORDER=0 WIDTH=100%>
+<TR><TD BGCOLOR=#DEEFA5 COLSPAN=2 ALIGN=left>
+<B><FONT COLOR=#000000 SIZE=3>
+□発送詳細
+</FONT></B>
+</TD></TR>
+<TR>
+<TD WIDTH=5%></TD>
+<TD WIDTH=95% ALIGN=left>
+<FONT COLOR=#333333 SIZE=3>
+<BR>佐川急便140サイズ（関西発）<BR>
+<BR>
+・着払い発送、代金引換は対応しておりません。<BR>
+<BR>
+・「ヤフネコ!パック」「ゆうパック・ゆうパケット（おてがる版）」等の取り扱いは対応しておりません。<BR>
+<BR>
+・元払いでの発送のみとなります。<BR>
+<BR>
+・直接のお取引は受け付けておりません。<BR>
+<BR>
+・離島の場合は別途中継手数料がかかります。<BR>
+<BR>
+<BR>※送料について<BR>
+<BR>
+物価高騰による運送会社の運賃値上げに伴い、送料を改定しております。<BR>
+記載の送料をご確認・ご納得のうえご入札をお願いいたします。<BR>
+<BR>
+<BR>------------------------------------------------------------------<BR>
+<BR>【北海道】<BR>
+<BR>・3090円<BR>
+<BR>【北東北】<BR>
+<BR>・2570円<BR>
+<BR>【南東北】<BR>
+<BR>・2440円<BR>
+<BR>【関東】【信越】【四国】【北九州】【南九州】<BR>
+<BR>・2310円<BR>
+<BR>【東海】【北陸】【関西】【中国】<BR>
+<BR>・2180円<BR>
+<BR>【沖縄】<BR>
+<BR>・6083円<BR>
+<BR>------------------------------------------------------------------<BR>
+</FONT>
+</TD>
+</TR>
+</TABLE>
+`;
+
+// カテゴリID(CATEGORY_OPTIONS)から「掃除機／炊飯器／その他」を判定する
+function getApplianceKind(product){
+  const cat = CATEGORY_OPTIONS.find(c => c.id === product.categoryId);
+  if(!cat) return 'other';
+  if(cat.group.indexOf('vacuum-') === 0) return 'vacuum';
+  if(cat.group.indexOf('ricecooker-') === 0) return 'ricecooker';
+  return 'other';
+}
+
+function riceCookerTypeLabelFromCategory(categoryId){
+  const cat = CATEGORY_OPTIONS.find(c => c.id === categoryId);
+  if(cat){
+    if(cat.group === 'ricecooker-pressure-ih') return '圧力IH炊飯ジャー 炊飯器';
+    if(cat.group === 'ricecooker-ih') return 'IH炊飯ジャー 炊飯器';
+    if(cat.group === 'ricecooker-microcomputer') return 'マイコン炊飯ジャー 炊飯器';
+  }
+  return '炊飯器';
+}
+
+// ---- 掃除機専用 ----
+function generateVacuumTitle(product){
+  const mgmt = formatManagementNumber(product.managementNumber);
+  const year = product.info.productionYear ? (product.info.productionYear + '年製') : '';
+  const parts = [mgmt, '電気掃除機', year, '通電確認済み', '中古品'].filter(Boolean);
+  return parts.join(' ').replace(/[ \t]{2,}/g, ' ').trim();
+}
+function generateVacuumDescription(product){
+  const noteValue = product.vacuumNote && product.vacuumNote.trim() ? (' ' + product.vacuumNote.trim()) : '';
+  return VACUUM_DESCRIPTION_TEMPLATE
+    .split('{{PRODUCT_NAME}}').join(product.title || '')
+    .split('{{POWER_CHECK}}').join(product.powerCheck || '〇')
+    .split('{{BRUSH_CHECK}}').join(product.brushCheck || '〇')
+    .split('{{SUCTION_CHECK}}').join(product.suctionCheck || '〇')
+    .split('{{VACUUM_NOTE}}').join(noteValue);
+}
+
+// ---- 炊飯器専用 ----
+function generateRiceCookerTitle(product){
+  const mgmt = formatManagementNumber(product.managementNumber);
+  const model = product.info.modelNumber || '';
+  const maker = product.info.manufacturer || '';
+  const typeLabel = riceCookerTypeLabelFromCategory(product.categoryId);
+  const capacity = (product.riceCookerCapacity && product.riceCookerCapacity !== '合数不明')
+    ? ('(' + product.riceCookerCapacity + '炊き)') : '';
+  const year = product.info.productionYear ? (product.info.productionYear + '年製') : '';
+
+  // "型番 メーカー" までは半角スペース区切り、"商品タイプ(合数)年製" は詰めて連結する
+  const head = [mgmt, model, maker].filter(Boolean).join(' ');
+  const tail = typeLabel + capacity + year;
+  const parts = [head, tail, '通電確認済み', '中古品'].filter(Boolean);
+  return parts.join(' ').replace(/[ \t]{2,}/g, ' ').trim();
+}
+function generateRiceCookerDescription(product){
+  const noteValue = product.riceCookerNote && product.riceCookerNote.trim() ? (' ' + product.riceCookerNote.trim()) : '';
+  const detail = RICE_COOKER_DETAIL_SECTION
+    .split('{{PRODUCT_NAME}}').join(product.title || '')
+    .split('{{RICE_NOTE}}').join(noteValue);
+  const shipping = product.shippingSize === '100サイズ' ? RICE_SHIPPING_SECTION_100 : RICE_SHIPPING_SECTION_140;
+  return detail + SHARED_PAYMENT_SECTION + shipping + SHARED_NOTICE_AND_FOOTER;
+}
+
 const PROGRESS_STEPS = [
   {key:'images', label:'画像アップロード'},
   {key:'mgmt', label:'管理番号入力'},
@@ -523,7 +924,8 @@ let state = {
   deviceId: '',
   filterMode: 'all', // all | thisDevice | unexported | exported
   selectedForExport: new Set(),
-  reexportConfirmIds: null // 出力済み商品を再出力しようとした時の確認対象ID一覧（null=確認不要）
+  reexportConfirmIds: null, // 出力済み商品を再出力しようとした時の確認対象ID一覧（null=確認不要）
+  hideExportedFromList: false // trueの場合、出力済み商品を左の商品一覧・CSVビューから隠す（出力成功直後にtrueになる）
 };
 
 CSV_COLUMNS.forEach(c => { if(c.type==='fixed') state.settings.fixedValues[c.key] = c.default; });
@@ -547,6 +949,16 @@ function newProduct(){
     categoryReasoning: '',
     title: '',
     description: '',
+    // ---- 掃除機専用（カテゴリーが掃除機の場合のみ使用） ----
+    powerCheck: '〇',   // 電源が入るか（〇／×）
+    brushCheck: '〇',   // ヘッドのブラシが回転するか（〇／×）
+    suctionCheck: '〇', // 吸い込みに問題がないか（〇／×）
+    vacuumNote: '',      // 備考
+    // ---- 炊飯器専用（カテゴリーが炊飯器の場合のみ使用） ----
+    riceCookerCapacity: '', // AI解析結果（例："5.5合"）。未解析時は空、AIが判定不能なら"合数不明"
+    riceCookerNote: '',     // 備考
+    shippingSize: '',       // "100サイズ" | "140サイズ"（合数から自動設定。手動変更した場合はそちらを優先）
+    shippingSizeManual: false, // trueの場合、合数が変わっても自動上書きしない
     ownerUid: state.authUser ? state.authUser.uid : '', // 商品データの完全分離に使う所有者ID（Googleログインのuid）
     createdByDeviceId: state.deviceId, // 参考情報：作成した端末（スマホ/PC等）の判別用
     createdAt: now,
@@ -555,6 +967,14 @@ function newProduct(){
     exportedAt: null,
     exportDeviceId: null
   };
+}
+
+// 合数(例:"5.5合")から箱サイズを自動判定する。判定できない場合はnull。
+function capacityToShippingSize(capacityStr){
+  if(!capacityStr || capacityStr === '合数不明') return null;
+  const num = parseFloat(String(capacityStr).replace(/[^0-9.]/g, ''));
+  if(isNaN(num)) return null;
+  return num <= 5.5 ? '100サイズ' : '140サイズ';
 }
 
 /* ---------- 3. PERSISTENCE（Firebase: Googleログイン + Firestore(ユーザーごとに完全分離) ／ Supabase: 画像保存） ---------- */
@@ -1048,6 +1468,12 @@ const AI_SYSTEM_PROMPT =
 - categoryReasoning: 上記の分類をどう判断したか、1〜2文で簡潔に（視覚的な根拠を書く）。
 - categoryConfidence: 0〜100の整数。分類の確信度。
 
+■ 作業C：炊飯器の炊飯容量（合数）の推定（applianceTypeが"炊飯器"の場合のみ）
+- riceCookerCapacity: 炊飯容量（例:"5.5合"、"3合"、"10合"）。
+  型番の一部の数字だけを見て単純に「合数」と決めつけないこと（例: 型番中の "10" を安易に10合と判断しない）。
+  型番の製品シリーズ・メーカー・本体の大きさ・パッケージや表示ラベルなど、画像から得られる情報を
+  総合的に判断すること。確信が持てない場合は空文字列にする（無理に数値を作らない）。
+
 各項目（型番・メーカー・製造年）について confidence（0〜100の整数、確信度）も返すこと。
 値が空文字列の場合、confidenceは0とする。
 
@@ -1057,11 +1483,12 @@ const AI_SYSTEM_PROMPT =
   値を空文字列にするか、低いconfidence値を設定したうえで notes に理由を日本語で簡潔に記載する
   （例:"型番の判定に自信がありません。ラベルの一部が不鮮明です。"）。
 - 作業Bの分類は視覚的推論を歓迎するが、判断できない場合は無理に決めず空文字列にする。
+- 作業Cの合数推定も、型番の数字だけからの機械的な決めつけは禁止。確信が持てなければ空文字列にする。
 - 1枚の画像に複数の異なる商品が写っていて対象が判別しづらい場合は multipleProductsWarning を true にする。
 - 複数の画像間で型番やメーカーの見え方に矛盾がある場合は notes にその旨を記載する。
 - 出力は次のJSON形式のみ。前置き・説明・コードブロック記号（\`\`\`）は一切付けない。
 
-{"modelNumber":"","modelNumberConfidence":0,"manufacturer":"","manufacturerConfidence":0,"productionYear":"","productionYearConfidence":0,"applianceType":"","vacuumType":"","riceCookerType":"","categoryReasoning":"","categoryConfidence":0,"notes":"","multipleProductsWarning":false}`;
+{"modelNumber":"","modelNumberConfidence":0,"manufacturer":"","manufacturerConfidence":0,"productionYear":"","productionYearConfidence":0,"applianceType":"","vacuumType":"","riceCookerType":"","riceCookerCapacity":"","categoryReasoning":"","categoryConfidence":0,"notes":"","multipleProductsWarning":false}`;
 
 // AI解析エンジン：Google Gemini API（画像対応モデル）を使用する。
 // モデル名はここ1箇所だけで管理する（将来のモデル変更時はここだけ書き換えればよい）。
@@ -1259,6 +1686,15 @@ async function runAiAnalysis(product, options){
     product.categoryConfidence = typeof parsed.categoryConfidence === 'number' ? parsed.categoryConfidence : null;
     product.categoryReasoning = parsed.categoryReasoning || '';
 
+    // 炊飯器の合数（AIが判定できた場合のみ反映。型番の数字だけからの機械的判定はプロンプト側で禁止している）
+    if(parsed.applianceType === '炊飯器'){
+      product.riceCookerCapacity = parsed.riceCookerCapacity || '合数不明';
+      if(!product.shippingSizeManual){
+        const autoSize = capacityToShippingSize(product.riceCookerCapacity);
+        if(autoSize) product.shippingSize = autoSize;
+      }
+    }
+
     regenerateAll(product);
     scheduleSaveProduct(product.id);
     return true;
@@ -1275,7 +1711,8 @@ async function runAiAnalysis(product, options){
 
 /* ---------- 6. 商品名生成 / 説明文プレースホルダー置換エンジン ---------- */
 
-function generateTitle(product){
+// 「その他」カテゴリー用（従来ロジック。掃除機・炊飯器以外はこれをそのまま使う）
+function generateGenericTitle(product){
   const vars = {
     MANAGEMENT_NUMBER: formatManagementNumber(product.managementNumber),
     MODEL_NUMBER: product.info.modelNumber || '',
@@ -1286,10 +1723,26 @@ function generateTitle(product){
   t = t.replace(/[ \t]{2,}/g, ' ').trim();
   return t;
 }
-
 // 固定HTMLテンプレートの中の「貼り付け！」だけを商品名へ置換する。他は一切変更しない。
-function renderDescription(product){
+function renderGenericDescription(product){
   return DESCRIPTION_TEMPLATE.split(PLACEHOLDER_TEXT).join(product.title || '');
+}
+
+// 商品名生成のディスパッチャー。カテゴリー（掃除機／炊飯器／その他）で処理を振り分ける。
+// 将来カテゴリーを追加する場合は、ここに分岐を追加していけばよい。
+function generateTitle(product){
+  const kind = getApplianceKind(product);
+  if(kind === 'vacuum') return generateVacuumTitle(product);
+  if(kind === 'ricecooker') return generateRiceCookerTitle(product);
+  return generateGenericTitle(product);
+}
+
+// 商品説明生成のディスパッチャー。
+function renderDescription(product){
+  const kind = getApplianceKind(product);
+  if(kind === 'vacuum') return generateVacuumDescription(product);
+  if(kind === 'ricecooker') return generateRiceCookerDescription(product);
+  return renderGenericDescription(product);
 }
 
 function regenerateAll(product){
@@ -1619,8 +2072,9 @@ async function downloadAuctownReadyZip(targetProducts){
     a.href = url; a.download = 'auction_listing_data_' + stamp + '.zip';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(url), 4000);
-    // ZIP生成が成功した場合のみ「出力済み」として記録する
+    // ZIP生成が成功した場合のみ「出力済み」として記録し、一覧から見えなくする
     await markProductsExported(products);
+    state.hideExportedFromList = true;
     render();
     showToast('オークタウン用ZIPを作成しました（' + products.length + '件）。そのままオークタウンへアップロードできます');
   }catch(e){
@@ -1631,8 +2085,16 @@ async function downloadAuctownReadyZip(targetProducts){
 
 // ============ PC向け：絞り込み・複数選択・選択商品のZIP出力 ============
 
+function getVisibleProducts(){
+  // hideExportedFromList: 出力成功直後、出力済み商品を一覧から隠す（データは削除しない。フィルターで「出力済み」を
+  // 選べばいつでも再表示できる）。Firestoreとのリアルタイム同期と競合しないよう、実データは消さない設計にしている。
+  if(state.hideExportedFromList) return state.products.filter(p => p.exportStatus !== 'exported');
+  return state.products;
+}
+
 function getFilteredProducts(){
-  return state.products.filter(p => {
+  const base = state.filterMode === 'exported' ? state.products : getVisibleProducts(); // 「出力済み」フィルター選択中は非表示設定を無視する
+  return base.filter(p => {
     if(state.filterMode === 'thisDevice') return p.createdByDeviceId === state.deviceId;
     if(state.filterMode === 'unexported') return p.exportStatus !== 'exported';
     if(state.filterMode === 'exported') return p.exportStatus === 'exported';
@@ -1769,12 +2231,15 @@ function renderProgressStrip(){
 }
 
 function renderSidebar(){
+  const visible = getVisibleProducts();
+  const hiddenCount = state.products.length - visible.length;
   return `
   <div class="sidebar">
-    <div class="sidebar-head"><h2>商品一覧（${state.products.length}件）</h2></div>
+    <div class="sidebar-head"><h2>商品一覧（${visible.length}件）</h2></div>
     <button class="add-product-btn" data-action="add-product">＋ 商品を追加</button>
+    ${hiddenCount > 0 ? `<button class="add-product-btn" style="border-style:solid;" data-action="show-exported-list">出力済み${hiddenCount}件を表示する</button>` : ''}
     <div class="product-list">
-      ${state.products.map(p=>renderProductListItem(p)).join('') || `<div style="padding:20px 10px;color:var(--ink-faint);font-size:12px;">まだ商品がありません。「＋ 商品を追加」から始めてください。</div>`}
+      ${visible.map(p=>renderProductListItem(p)).join('') || `<div style="padding:20px 10px;color:var(--ink-faint);font-size:12px;">${hiddenCount>0 ? '出力済みの商品のみです。' : 'まだ商品がありません。「＋ 商品を追加」から始めてください。'}</div>`}
     </div>
     <div class="sidebar-foot">
       <button data-action="goto-csv">📄 CSVデータ確認へ</button>
@@ -1908,6 +2373,69 @@ function renderMgmtTab(p){
   </div>`;
 }
 
+function renderApplianceSpecificFields(p){
+  const kind = getApplianceKind(p);
+  if(kind === 'vacuum'){
+    return `
+    <div class="card">
+      <h3>掃除機の動作確認</h3>
+      <p class="card-desc">商品説明の「□商品詳細」に自動反映されます。初期値は〇です。</p>
+      <div class="field-row">
+        ${renderOkNgToggle(p, 'powerCheck', '電源が入るか')}
+        ${renderOkNgToggle(p, 'brushCheck', 'ヘッドのブラシが回転するか')}
+        ${renderOkNgToggle(p, 'suctionCheck', '吸い込みに問題がないか')}
+      </div>
+      <div class="field" style="margin-top:8px;">
+        <label>備考</label>
+        <textarea data-action="edit-vacuum-note" rows="3" placeholder="例：吸い込みがやや弱いです">${escapeHtml(p.vacuumNote)}</textarea>
+        <p class="hint">空欄の場合、説明文には「・備考」とだけ表示されます。</p>
+      </div>
+    </div>`;
+  }
+  if(kind === 'ricecooker'){
+    const capacityLabel = p.riceCookerCapacity || '（AI解析待ち）';
+    return `
+    <div class="card">
+      <h3>炊飯器の情報</h3>
+      <p class="card-desc">合数はAI解析結果から自動判定されます（型番の数字だけからの単純推測はしていません）。確認・手動修正してください。</p>
+      <div class="field-row">
+        <div class="field" style="max-width:220px;">
+          <label>炊飯容量（合数）</label>
+          <input type="text" data-action="edit-rice-capacity" value="${escapeAttr(p.riceCookerCapacity)}" placeholder="例：5.5合">
+          <p class="hint">現在の値：${escapeHtml(capacityLabel)}</p>
+        </div>
+        <div class="field" style="max-width:220px;">
+          <label>箱サイズ</label>
+          <select data-action="edit-shipping-size">
+            <option value="" ${!p.shippingSize?'selected':''}>未設定</option>
+            <option value="100サイズ" ${p.shippingSize==='100サイズ'?'selected':''}>100サイズ</option>
+            <option value="140サイズ" ${p.shippingSize==='140サイズ'?'selected':''}>140サイズ</option>
+          </select>
+          <p class="hint">${p.shippingSizeManual ? '手動設定中（合数を変更しても自動では変わりません）' : '合数から自動設定されます'}</p>
+        </div>
+      </div>
+      <div class="field" style="margin-top:8px;">
+        <label>備考</label>
+        <textarea data-action="edit-rice-note" rows="3" placeholder="例：内釜に薄い傷があります">${escapeHtml(p.riceCookerNote)}</textarea>
+        <p class="hint">空欄の場合、説明文には「・備考」とだけ表示されます。</p>
+      </div>
+    </div>`;
+  }
+  return '';
+}
+
+function renderOkNgToggle(p, key, label){
+  const val = p[key] || '〇';
+  return `
+  <div class="field" style="max-width:220px;">
+    <label>${label}</label>
+    <div class="btn-row">
+      <button class="btn ${val==='〇'?'accent':''}" data-action="set-ok-ng" data-key="${key}" data-value="〇">〇</button>
+      <button class="btn ${val==='×'?'accent':''}" data-action="set-ok-ng" data-key="${key}" data-value="×">×</button>
+    </div>
+  </div>`;
+}
+
 function renderAiTab(p){
   let banner = '';
   if(p.aiStatus==='loading') banner = `<div class="ai-status-banner loading"><span class="spinner"></span> AIが型番・メーカー・製造年を解析しています…</div>`;
@@ -1953,9 +2481,10 @@ function renderAiTab(p){
       ${p.categoryReasoning ? `<div class="hint">AIの判断理由：${escapeHtml(p.categoryReasoning)}</div>` : ''}
     </div>
   </div>
+  ${renderApplianceSpecificFields(p)}
   <div class="card">
     <h3>生成商品名</h3>
-    <p class="card-desc">テンプレート「${escapeHtml(state.settings.titleTemplate)}」から自動生成されます。編集すると商品説明の冒頭も自動的に同期されます。</p>
+    <p class="card-desc">${getApplianceKind(p)==='other' ? `テンプレート「${escapeHtml(state.settings.titleTemplate)}」から自動生成されます。` : `「${getApplianceKind(p)==='vacuum'?'掃除機':'炊飯器'}」専用の形式で自動生成されます。`}編集すると商品説明の冒頭も自動的に同期されます。</p>
     <div class="field">
       <textarea data-action="edit-title" rows="2">${escapeHtml(p.title)}</textarea>
       <div class="btn-row" style="margin-top:8px;">
@@ -2462,7 +2991,48 @@ function handleAction(action, el, e){
       p.categoryId = el.value;
       p.categoryConfidence = null;
       p.categoryReasoning = '';
+      regenerateAll(p); // カテゴリーによって商品名・説明文のテンプレートが変わるため再生成する
       scheduleSaveProduct(p.id); render();
+      break;
+    }
+    case 'set-ok-ng': {
+      if(!p) return;
+      p[el.getAttribute('data-key')] = el.getAttribute('data-value');
+      regenerateAll(p);
+      scheduleSaveProduct(p.id); render();
+      break;
+    }
+    case 'edit-vacuum-note': {
+      if(!p) return;
+      p.vacuumNote = el.value;
+      regenerateAll(p);
+      scheduleSaveProduct(p.id);
+      break;
+    }
+    case 'edit-rice-capacity': {
+      if(!p) return;
+      p.riceCookerCapacity = el.value;
+      if(!p.shippingSizeManual){
+        const autoSize = capacityToShippingSize(p.riceCookerCapacity);
+        if(autoSize) p.shippingSize = autoSize;
+      }
+      regenerateAll(p);
+      scheduleSaveProduct(p.id); render();
+      break;
+    }
+    case 'edit-shipping-size': {
+      if(!p) return;
+      p.shippingSize = el.value;
+      p.shippingSizeManual = true; // 手動変更した以上、以後は合数変更で自動上書きしない
+      regenerateAll(p);
+      scheduleSaveProduct(p.id); render();
+      break;
+    }
+    case 'edit-rice-note': {
+      if(!p) return;
+      p.riceCookerNote = el.value;
+      regenerateAll(p);
+      scheduleSaveProduct(p.id);
       break;
     }
     case 'edit-title': { if(!p) return; p.title = el.value; p.description = renderDescription(p); scheduleSaveProduct(p.id); break; }
@@ -2485,6 +3055,11 @@ function handleAction(action, el, e){
     case 'download-auctown-zip': downloadAuctownReadyZip(); break;
     case 'google-sign-in': signInWithGoogle(); break;
     case 'sign-out': signOutUser(); break;
+    case 'show-exported-list': {
+      state.hideExportedFromList = false;
+      render();
+      break;
+    }
     case 'set-filter': {
       state.filterMode = el.getAttribute('data-filter');
       render();

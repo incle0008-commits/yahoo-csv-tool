@@ -29,6 +29,7 @@ input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink);}
 #app{display:flex;flex-direction:column;min-height:100vh;}
 .topbar{background:var(--ink);color:#fff;padding:18px 24px 16px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;border-bottom:3px solid var(--accent);}
 .brand-mark{display:flex;align-items:center;gap:12px;}
+.version-badge{margin-left:8px;align-self:flex-start;font-family:var(--mono);font-size:10px;color:#8a90a8;border:1px solid #454b60;border-radius:10px;padding:2px 8px;white-space:nowrap;}
 .stamp{width:34px;height:34px;border-radius:50%;border:2px solid var(--accent);color:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--disp);font-weight:900;font-size:14px;flex:none;background:rgba(168,59,50,0.08);}
 .topbar h1{font-family:var(--disp);font-weight:900;font-size:19px;margin:0;letter-spacing:.02em;}
 .topbar .sub{color:#c7c9d4;font-size:12.5px;margin-top:3px;}
@@ -483,6 +484,9 @@ Yahoo!かんたん決済
 
 const PLACEHOLDER_TEXT = '貼り付け！';
 
+// ツールのバージョン表記（更新のたびにここだけ書き換える。画面右上に小さく表示される）
+const TOOL_VERSION = 'ver0.01';
+
 /* ---------- 5b. カテゴリー別テンプレート（試作：掃除機・炊飯器のみ専用化） ----------
    それ以外のカテゴリーは従来通り DESCRIPTION_TEMPLATE（「貼り付け！」置換方式）を使用する。
    将来カテゴリーを追加する場合は、generateProductTitle / generateProductDescription に
@@ -510,9 +514,7 @@ const VACUUM_DESCRIPTION_TEMPLATE =
 ・ヘッドのブラシが回転するか。→{{BRUSH_CHECK}}<BR>
 ・吸い込みに問題がないか。→{{SUCTION_CHECK}}<BR>
 <BR>
-・備考{{VACUUM_NOTE}}<BR>
-<BR>
-※必ず入札前に最後までお読みください。また、入札された段階で、記入内容に同意したものと判断いたしますので、熟読の上ご入札いただくようお願いいたします。<BR>
+{{VACUUM_NOTE_LINE}}※必ず入札前に最後までお読みください。また、入札された段階で、記入内容に同意したものと判断いたしますので、熟読の上ご入札いただくようお願いいたします。<BR>
 <BR>
 ※落札をされた後に返品をされる方が大変多く見受けられます。<BR>
 商品の説明欄を必ず熟読いただき、商品に不備があった場合以外は返品を受け付けませんのであらかじめご了承ください。<BR>
@@ -645,9 +647,7 @@ const RICE_COOKER_DETAIL_SECTION =
 <BR>
 ・通電、炊飯機能確認済。<BR>
 <BR>
-・備考{{RICE_NOTE}}<BR>
-<BR>
-※検品時に使用した水道水が残っていますがご了承くださいますようお願いいたします。<BR>
+{{RICE_NOTE_LINE}}※検品時に使用した水道水が残っていますがご了承くださいますようお願いいたします。<BR>
 <BR>
 ※必ず入札前に最後までお読みください。また、入札された段階で、記入内容に同意したものと判断いたしますので、熟読の上ご入札いただくようお願いいたします。<BR>
 <BR>
@@ -845,18 +845,28 @@ function riceCookerTypeLabelFromCategory(categoryId){
 // ---- 掃除機専用 ----
 function generateVacuumTitle(product){
   const mgmt = formatManagementNumber(product.managementNumber);
+  const model = product.info.modelNumber || '';
+  const maker = product.info.manufacturer || '';
   const year = product.info.productionYear ? (product.info.productionYear + '年製') : '';
-  const parts = [mgmt, '電気掃除機', year, '通電確認済み', '中古品'].filter(Boolean);
+  const makerAndCategory = maker + '電気掃除機'; // メーカー名に直接連結する（メーカー未取得なら「電気掃除機」のみ）
+  const parts = [mgmt, model, makerAndCategory, year, '通電確認済み', '中古品'].filter(Boolean);
   return parts.join(' ').replace(/[ \t]{2,}/g, ' ').trim();
 }
+// 備考行を作る共通処理：
+// 未入力の場合は行ごと消す。入力がある場合は「・備考」のラベルは付けず「・入力内容」だけ表示する。
+function buildNoteLine(note){
+  const trimmed = (note || '').trim();
+  if(!trimmed) return '';
+  return '・' + trimmed + '<BR>\n<BR>\n';
+}
+
 function generateVacuumDescription(product){
-  const noteValue = product.vacuumNote && product.vacuumNote.trim() ? (' ' + product.vacuumNote.trim()) : '';
   return VACUUM_DESCRIPTION_TEMPLATE
     .split('{{PRODUCT_NAME}}').join(product.title || '')
     .split('{{POWER_CHECK}}').join(product.powerCheck || '〇')
     .split('{{BRUSH_CHECK}}').join(product.brushCheck || '〇')
     .split('{{SUCTION_CHECK}}').join(product.suctionCheck || '〇')
-    .split('{{VACUUM_NOTE}}').join(noteValue);
+    .split('{{VACUUM_NOTE_LINE}}').join(buildNoteLine(product.vacuumNote));
 }
 
 // ---- 炊飯器専用 ----
@@ -876,10 +886,9 @@ function generateRiceCookerTitle(product){
   return parts.join(' ').replace(/[ \t]{2,}/g, ' ').trim();
 }
 function generateRiceCookerDescription(product){
-  const noteValue = product.riceCookerNote && product.riceCookerNote.trim() ? (' ' + product.riceCookerNote.trim()) : '';
   const detail = RICE_COOKER_DETAIL_SECTION
     .split('{{PRODUCT_NAME}}').join(product.title || '')
-    .split('{{RICE_NOTE}}').join(noteValue);
+    .split('{{RICE_NOTE_LINE}}').join(buildNoteLine(product.riceCookerNote));
   const shipping = product.shippingSize === '100サイズ' ? RICE_SHIPPING_SECTION_100 : RICE_SHIPPING_SECTION_140;
   return detail + SHARED_PAYMENT_SECTION + shipping + SHARED_NOTICE_AND_FOOTER;
 }
@@ -1440,11 +1449,13 @@ const AI_SYSTEM_PROMPT =
   読み取れた範囲だけを採用するか、判読不能なら空文字列にする。似た型番（例:CV-F50とCV-F55）を
   勝手にどちらかに決めない。
 - manufacturer: メーカー名。"ENGLISH表記 日本語表記" の形式で出力する。
-  例: "HITACHI 日立" "TOSHIBA 東芝" "Panasonic パナソニック" "SONY ソニー" "SHARP シャープ" "MITSUBISHI 三菱" "DYSON ダイソン"。
+  例: "HITACHI 日立" "TOSHIBA 東芝" "Panasonic パナソニック" "SONY ソニー" "SHARP シャープ" "MITSUBISHI 三菱" "DYSON ダイソン" "TIGER タイガー" "ZOJIRUSHI 象印"。
   銘板の文字だけでなく、本体・ロゴのデザイン（例: ダイソンの独特なサイクロン形状とマゼンタ/紫の配色、
   パナソニックの青いロゴ、SHARPの赤いロゴ、日立の赤いロゴ、東芝の青いロゴ）も判断材料にしてよいが、
   文字が確認できない場合はロゴ・デザインのみでの断定は避け、確信が持てなければ空文字列にする。
-  一般的に知られる正式な日本語表記を使うこと。
+  日本語表記は「タイガー魔法瓶」「日立製作所」のような正式な法人名ではなく、一般消費者に広く知られている
+  分かりやすいブランド名（通称）を使うこと（例: タイガー魔法瓶(株) → タイガー、日立製作所 → 日立、
+  象印マホービン(株) → 象印）。
 - productionYear: 製造年（西暦4桁）。「2019年製」「19年製」のような記載がある場合のみ抽出し、
   2桁表記は妥当な西暦に変換する。記載が見当たらない場合は絶対に推測せず空文字列にする。
 
@@ -2207,6 +2218,7 @@ function renderTopbar(){
         <h1>ヤフオク・オークタウン用 CSV出品データ自動作成ツール</h1>
         <div class="sub">画像から型番・メーカー・製造年を判別し、商品名・説明文へ反映して規定フォーマットのCSVを作成</div>
       </div>
+      <span class="version-badge" title="このツールのバージョン">${escapeHtml(TOOL_VERSION)}</span>
     </div>
     <div class="topbar-actions">
       <button class="icon-btn" data-action="sign-out" title="${escapeAttr(state.authUser ? state.authUser.email : '')}">👤 ${escapeHtml(state.authUser ? (state.authUser.displayName || state.authUser.email) : '')}（ログアウト）</button>

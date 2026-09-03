@@ -518,9 +518,10 @@ let state = {
   descPreviewMode: 'render', // render | raw
   batch: null,
   loaded: false,
-  authState: 'loading', // loading | needs-setup | ready
+  authState: 'loading', // loading | needs-setup | signed-out | ready
+  authUser: null, // { uid, displayName, email, photoURL }（Googleログイン後にセットされる）
   deviceId: '',
-  filterMode: 'all', // all | mine | unexported | exported
+  filterMode: 'all', // all | thisDevice | unexported | exported
   selectedForExport: new Set(),
   reexportConfirmIds: null // 出力済み商品を再出力しようとした時の確認対象ID一覧（null=確認不要）
 };
@@ -546,7 +547,8 @@ function newProduct(){
     categoryReasoning: '',
     title: '',
     description: '',
-    createdByDeviceId: state.deviceId,
+    ownerUid: state.authUser ? state.authUser.uid : '', // 商品データの完全分離に使う所有者ID（Googleログインのuid）
+    createdByDeviceId: state.deviceId, // 参考情報：作成した端末（スマホ/PC等）の判別用
     createdAt: now,
     updatedAt: now,
     exportStatus: 'none', // none | exported
@@ -555,7 +557,7 @@ function newProduct(){
   };
 }
 
-/* ---------- 3. PERSISTENCE（Firebase: ログイン不要 / 匿名認証 + Firestore(商品単位) ／ Supabase: 画像保存） ---------- */
+/* ---------- 3. PERSISTENCE（Firebase: Googleログイン + Firestore(ユーザーごとに完全分離) ／ Supabase: 画像保存） ---------- */
 
 // ▼▼▼ ここにご自身のFirebaseプロジェクトの設定値を入力してください（Auth・Firestore用） ▼▼▼
 // Firebaseコンソール → プロジェクトの設定 → マイアプリ → SDKの設定と構成 で確認できます。
@@ -603,21 +605,26 @@ function initFirebase(){
   }
 }
 
-// ログイン画面は一切出さず、裏側で匿名認証だけ行う（Firestoreのセキュリティルールを
-// 満たすために必要。ユーザーには一切見えない・操作させない）。
-async function ensureAnonymousAuth(){
-  if(!fbAuth) return false;
+// Googleアカウントでログインする。このuid（Google認証のユーザーID）を「所有者」として
+// すべての商品データを完全に分離する（他のユーザーのデータは一切表示されず、
+// Firestoreのセキュリティルールでもアクセスできないようにする）。
+async function signInWithGoogle(){
+  if(!fbAuth) return;
   try{
-    if(!fbAuth.currentUser) await fbAuth.signInAnonymously();
-    return true;
+    const provider = new firebase.auth.GoogleAuthProvider();
+    await fbAuth.signInWithPopup(provider);
   }catch(e){
-    console.error('匿名認証に失敗しました', e);
-    return false;
+    console.error(e);
+    showToast('ログインに失敗しました: ' + e.message);
   }
 }
+async function signOutUser(){
+  if(!fbAuth) return;
+  try{ await fbAuth.signOut(); }catch(e){ console.error(e); }
+}
 
-// 端末ごとの匿名ID。ログインの代わりに「どの端末が作った商品か」を判別するためだけに使う。
-// ユーザーには見せない内部値。
+// 端末ごとの匿名ID（ログインとは別）。同じ自分のアカウント内で「スマホで作った分だけ見る」
+// といった端末単位の絞り込みに使う参考情報。ユーザーには内部値としては見せない。
 const DEVICE_ID_STORAGE_KEY = 'yahoo-csv-tool-device-id';
 function getOrCreateDeviceId(){
   let id = '';
@@ -629,9 +636,14 @@ function getOrCreateDeviceId(){
   return id;
 }
 
+// 商品データはownerUid（ログイン中のGoogleアカウントのuid）で完全に分離する。
+// Firestoreのクエリ自体をuidで絞り込み、さらにセキュリティルール側でも
+// 「自分のownerUidのデータしか読み書きできない」よう二重に保護する。
 function productsCollection(){ return fbDb.collection('products'); }
-function mgmtNumbersCollection(){ return fbDb.collection('mgmtNumbers'); }
-function settingsDocRef(){ return fbDb.collection('meta').doc('settings'); }
+function myProductsQuery(){ return productsCollection().where('ownerUid', '==', state.authUser.uid); }
+// 管理番号の重複チェックも「自分のデータの中だけ」で行う（ユーザーごとに独立した番号体系にできる）
+function mgmtNumbersCollection(){ return fbDb.collection('mgmtNumbers').doc(state.authUser.uid).collection('codes'); }
+function settingsDocRef(){ return fbDb.collection('userSettings').doc(state.authUser.uid); }
 
 function sanitizeMgmtKey(code){
   return String(code || '').replace(/[^A-Za-z0-9_-]/g, '_') || '_';
@@ -692,7 +704,8 @@ function scheduleSaveProduct(productId){
   saveTimers[productId] = setTimeout(() => persistProduct(productId), 700);
 }
 
-// 管理番号の重複を防ぐため、Firestore Transactionで排他制御しつつ商品を保存する。
+// 管理番号の重複を防ぐため、Firestore Transactionで排他制御しつつ商品を保存する
+// （自分のデータの中だけでの重複チェック。ユーザーが異なれば同じ番号を使ってもよい）。
 // 同じ管理番号が既に「別の商品」で使われていた場合は保存を中止し、警告を表示する
 // （複数端末が同時に同じ番号を登録しようとしても、どちらか一方だけが成功する）。
 async function persistProduct(productId){
@@ -745,12 +758,14 @@ async function persistProduct(productId){
 
 // ============ 商品：リアルタイム同期 ============
 
-// 全商品をリアルタイム購読する。ポイント:
-// ・商品は1つずつ独立したFirestoreドキュメントなので、他端末の変更は該当商品にだけ反映される
+// 自分（ログイン中のuid）が所有する商品だけをリアルタイム購読する。
+// クエリ自体をownerUidで絞り込んでいるため、他のユーザーの商品データはそもそも
+// 一切取得されない（表示上隠すのではなく、データが来ない）。
+// ・商品は1つずつ独立したFirestoreドキュメントなので、自分の他端末での変更は該当商品にだけ反映される
 // ・ただし「今まさに選択して編集中の商品」だけは、他端末発の更新で上書きしない
-//   （要件15：編集中のフォームが、他の変更をきっかけに再生成されて入力内容が消えるのを防ぐ）
+//   （編集中のフォームが、他の変更をきっかけに再生成されて入力内容が消えるのを防ぐ）
 function subscribeToProducts(){
-  productsCollection().onSnapshot((snapshot) => {
+  myProductsQuery().onSnapshot((snapshot) => {
     let changed = false;
     snapshot.docChanges().forEach((change) => {
       const id = change.doc.id;
@@ -818,12 +833,15 @@ function subscribeToSettings(){
 
 // ============ 画像：Supabase Storageへの保存・削除・取得 ============
 
-// 画像本体はSupabase Storageへアップロードする（バックグラウンドで実行、完了後に自動保存）。
-// 失敗してもローカルのdataUrlはそのまま使えるため、その場の作業は止めない。
+// 画像はユーザーのuidごとにパスを分けて保存する（products/{uid}/{productId}/images/...）。
+// これにより実務上、他ユーザーの画像と混ざることはない。
+// 【重要】ただしSupabase側は現在「共通の公開鍵」でアクセスする設定のため、Firestoreほど
+// 厳密な保護（アクセス自体を拒否する）にはなっていない。実務上は十分だが、より厳密な
+// 保護が必要な場合はSupabase側でFirebase認証と連携する追加設定が必要になる。
 async function uploadImageToCloud(product, img){
   if(!sbClient || state.authState !== 'ready') return;
   try{
-    const path = 'products/' + product.id + '/images/' + img.id + '.jpg';
+    const path = 'products/' + state.authUser.uid + '/' + product.id + '/images/' + img.id + '.jpg';
     const bytes = dataUrlToUint8Array(img.dataUrl);
     const { error } = await sbClient.storage.from(SUPABASE_CONFIG.bucket).upload(path, bytes, {
       contentType: 'image/jpeg', upsert: true
@@ -1532,7 +1550,7 @@ async function downloadAuctownReadyZip(targetProducts){
 
 function getFilteredProducts(){
   return state.products.filter(p => {
-    if(state.filterMode === 'mine') return p.createdByDeviceId === state.deviceId;
+    if(state.filterMode === 'thisDevice') return p.createdByDeviceId === state.deviceId;
     if(state.filterMode === 'unexported') return p.exportStatus !== 'exported';
     if(state.filterMode === 'exported') return p.exportStatus === 'exported';
     return true;
@@ -1568,8 +1586,13 @@ function render(){
     app.innerHTML = renderFirebaseSetupNeeded();
     return;
   }
-  if(state.authState !== 'ready'){
+  if(state.authState === 'loading'){
     app.innerHTML = '<div style="padding:60px;text-align:center;color:#8b8f9c;">読み込み中…</div>';
+    return;
+  }
+  if(state.authState === 'signed-out'){
+    app.innerHTML = renderSignInScreen();
+    attachEvents();
     return;
   }
 
@@ -1589,19 +1612,29 @@ function render(){
   attachEvents();
 }
 
+function renderSignInScreen(){
+  return `
+  <div style="max-width:420px;margin:80px auto;padding:0 20px;text-align:center;">
+    <div class="stamp-lg" style="margin:0 auto 20px;">CSV</div>
+    <h2 style="font-family:var(--disp);margin-bottom:8px;">ヤフオク・オークタウン用<br>CSV出品データ自動作成ツール</h2>
+    <p class="card-desc" style="margin-bottom:24px;">Googleアカウントでログインすると、スマホ・PCなど複数の端末でデータが自動的に共有されます。<b>他の人のデータは一切表示されません</b>（アカウントごとに完全に分離されています）。</p>
+    <button class="btn accent" style="padding:12px 28px;font-size:14px;" data-action="google-sign-in">Googleでログイン</button>
+  </div>`;
+}
+
 function renderFirebaseSetupNeeded(){
   return `
   <div style="max-width:560px;margin:60px auto;padding:0 20px;">
     <div class="card">
       <h3>⚙ 初期設定が必要です</h3>
-      <p class="card-desc">このツールでスマホ・PC間の自動データ共有を使うには、無料のFirebase（データ本体用）と
+      <p class="card-desc">このツールでGoogleアカウント単位のデータ分離を使うには、無料のFirebase（データ本体用）と
       無料のSupabase（画像保存用）のプロジェクトを作成し、コード内の <code>FIREBASE_CONFIG</code> と
-      <code>SUPABASE_CONFIG</code> に設定値を入力する必要があります（ログイン画面・共有コードの入力は一切ありません。
-      URLを開くだけで自動的に使えます）。</p>
+      <code>SUPABASE_CONFIG</code> に設定値を入力する必要があります。</p>
       <p style="font-size:12.5px;font-weight:700;color:var(--ink);margin:14px 0 4px;">① Firebase（商品データ用）</p>
       <ol style="font-size:13px;color:var(--ink-soft);line-height:1.9;padding-left:20px;margin-top:4px;">
         <li><a href="https://console.firebase.google.com/" target="_blank" rel="noopener">Firebaseコンソール</a>でプロジェクトを新規作成</li>
-        <li>「Authentication」→「Sign-in method」→「匿名」を有効化（Googleログイン等は不要です）</li>
+        <li>「Authentication」→「Sign-in method」→「Google」を有効化</li>
+        <li>「Authentication」→「Settings」→「承認済みドメイン」に、このツールを公開しているドメインを追加</li>
         <li>「Firestore Database」を作成（本番環境モードでOK。後述のセキュリティルールを設定）</li>
         <li>「プロジェクトの設定」→「マイアプリ」でウェブアプリを追加し、表示された設定値をコード内の
         <code>FIREBASE_CONFIG</code> にコピー</li>
@@ -1631,6 +1664,7 @@ function renderTopbar(){
       </div>
     </div>
     <div class="topbar-actions">
+      <button class="icon-btn" data-action="sign-out" title="${escapeAttr(state.authUser ? state.authUser.email : '')}">👤 ${escapeHtml(state.authUser ? (state.authUser.displayName || state.authUser.email) : '')}（ログアウト）</button>
       <button class="icon-btn ${pending>0?'hi':''}" data-action="run-batch" ${state.batch&&state.batch.running?'disabled':''}>⚡ AIで一括解析${pending>0?'（'+pending+'件）':''}</button>
       <button class="icon-btn" data-action="open-settings">⚙ 設定</button>
       <button class="icon-btn" data-action="goto-csv">📄 CSVデータ確認</button>
@@ -1871,7 +1905,7 @@ function renderCsvView(){
   const filtered = getFilteredProducts();
   const filterCounts = {
     all: state.products.length,
-    mine: state.products.filter(p=>p.createdByDeviceId===state.deviceId).length,
+    thisDevice: state.products.filter(p=>p.createdByDeviceId===state.deviceId).length,
     unexported: state.products.filter(p=>p.exportStatus!=='exported').length,
     exported: state.products.filter(p=>p.exportStatus==='exported').length
   };
@@ -1892,7 +1926,7 @@ function renderCsvView(){
       <div class="card">
         <div class="filter-chip-row">
           <button class="filter-chip ${state.filterMode==='all'?'active':''}" data-action="set-filter" data-filter="all">すべて（${filterCounts.all}）</button>
-          <button class="filter-chip ${state.filterMode==='mine'?'active':''}" data-action="set-filter" data-filter="mine">自分が作成（${filterCounts.mine}）</button>
+          <button class="filter-chip ${state.filterMode==='thisDevice'?'active':''}" data-action="set-filter" data-filter="thisDevice">この端末で作成（${filterCounts.thisDevice}）</button>
           <button class="filter-chip ${state.filterMode==='unexported'?'active':''}" data-action="set-filter" data-filter="unexported">未出力（${filterCounts.unexported}）</button>
           <button class="filter-chip ${state.filterMode==='exported'?'active':''}" data-action="set-filter" data-filter="exported">出力済み（${filterCounts.exported}）</button>
         </div>
@@ -2009,7 +2043,7 @@ function renderConfirmCard(p){
       </div>
       <div class="btn-row">
         <span class="export-badge ${isExported?'exported':'unexported'}">${isExported?'出力済み':'未出力'}</span>
-        ${isMine ? '<span class="mine-badge" title="この端末で作成">📱自分が作成</span>' : ''}
+        ${isMine ? '<span class="mine-badge" title="この端末で作成">📱この端末で作成</span>' : ''}
         <button class="small-btn" data-action="edit-from-confirm" data-id="${p.id}">編集</button>
         <button class="small-btn danger" data-action="delete-product" data-id="${p.id}">削除</button>
       </div>
@@ -2366,6 +2400,8 @@ function handleAction(action, el, e){
     case 'download-csv': downloadCsv(); break;
     case 'download-image-zip': downloadImageFolderZip(); break;
     case 'download-auctown-zip': downloadAuctownReadyZip(); break;
+    case 'google-sign-in': signInWithGoogle(); break;
+    case 'sign-out': signOutUser(); break;
     case 'set-filter': {
       state.filterMode = el.getAttribute('data-filter');
       render();
@@ -2492,18 +2528,22 @@ async function init(){
     return;
   }
 
-  const authOk = await ensureAnonymousAuth();
-  if(!authOk){
-    state.authState = 'needs-setup';
-    render();
-    return;
-  }
-
   state.deviceId = getOrCreateDeviceId();
-  state.authState = 'ready';
-  subscribeToProducts();
-  subscribeToSettings();
-  render();
+
+  fbAuth.onAuthStateChanged(async (user) => {
+    if(user){
+      state.authUser = { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL };
+      state.authState = 'ready';
+      render();
+      subscribeToProducts();
+      subscribeToSettings();
+    }else{
+      state.authUser = null;
+      state.products = [];
+      state.authState = 'signed-out';
+      render();
+    }
+  });
 }
 init();
 </script>

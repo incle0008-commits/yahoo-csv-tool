@@ -1073,7 +1073,8 @@ const AI_MAX_IMAGES_SINGLE = 10;   // 単品解析：精度優先で最大10枚
 const AI_MAX_IMAGES_BATCH = 5;     // 一括解析：速度優先で最大5枚（商品の画像が5枚以下ならその枚数のまま）
 const AI_MAX_RETRIES = 3;          // 429/5xx/タイムアウト/ネットワークエラー時の最大リトライ回数
 const AI_TIMEOUT_MS = 60000;       // 1リクエストあたりのタイムアウト
-const AI_MAX_OUTPUT_TOKENS = 800;  // JSONは短いので出力トークン上限を抑える（項目が途中で切れない範囲）
+const AI_MAX_OUTPUT_TOKENS = 4096; // gemini-3.5-flashは思考(thinking)にも出力トークン枠を使うため、
+                                    // JSON本体が途中で切れないよう余裕を持たせた値にしている
 
 // このツールを外部サイト（GitHub Pages等）で公開して使う場合、Gemini APIへは
 // ユーザー自身のAPIキーが必要（ブラウザから直接呼び出す構成のため）。
@@ -1183,15 +1184,35 @@ async function callGeminiVisionJson(promptText, images){
     generationConfig: {
       responseMimeType: 'application/json',
       temperature: 0,               // OCR・分類タスクのため安定性を優先
-      maxOutputTokens: AI_MAX_OUTPUT_TOKENS
+      maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
+      // gemini-3.5-flashは思考(thinking)を完全にはオフにできない仕様のため、
+      // 最も軽い設定にして思考によるトークン消費・遅延を最小限に抑える
+      thinkingConfig: { thinkingLevel: 'low' }
     }
   });
 
   const data = await response.json();
   const candidate = (data.candidates || [])[0];
+  const blockReason = data.promptFeedback && data.promptFeedback.blockReason;
+  if(blockReason){
+    throw new Error('Geminiにより内容がブロックされました（' + blockReason + '）。画像の内容をご確認ください。');
+  }
+  const finishReason = candidate && candidate.finishReason;
   const textPart = candidate && candidate.content && (candidate.content.parts || []).find(p => typeof p.text === 'string');
-  if(!textPart) throw new Error('AIからの応答が空でした');
-  return extractJsonFromText(textPart.text);
+  if(!textPart){
+    throw new Error('AIからの応答が空でした' + (finishReason ? '（finishReason: ' + finishReason + '）' : ''));
+  }
+  try{
+    return extractJsonFromText(textPart.text);
+  }catch(e){
+    // 診断しやすいよう、実際に返ってきた内容の先頭部分とfinishReasonをエラーに含める
+    const snippet = textPart.text.slice(0, 300).replace(/\s+/g, ' ');
+    throw new Error(
+      'AIの応答をJSONとして解釈できませんでした' +
+      (finishReason ? '（finishReason: ' + finishReason + '）' : '') +
+      ' / 応答内容の先頭: ' + snippet
+    );
+  }
 }
 
 // options.maxImages: 送信する画像の最大枚数（単品解析=10枚, 一括解析=5枚）

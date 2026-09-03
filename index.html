@@ -1067,6 +1067,14 @@ const AI_SYSTEM_PROMPT =
 // モデル名はここ1箇所だけで管理する（将来のモデル変更時はここだけ書き換えればよい）。
 const GEMINI_MODEL = 'gemini-3.5-flash';
 
+// 高速化パラメータ
+const AI_CONCURRENCY = 5;          // 一括解析の同時実行数（Worker Pool方式。無制限のPromise.allは行わない）
+const AI_MAX_IMAGES_SINGLE = 10;   // 単品解析：精度優先で最大10枚
+const AI_MAX_IMAGES_BATCH = 5;     // 一括解析：速度優先で最大5枚（商品の画像が5枚以下ならその枚数のまま）
+const AI_MAX_RETRIES = 3;          // 429/5xx/タイムアウト/ネットワークエラー時の最大リトライ回数
+const AI_TIMEOUT_MS = 60000;       // 1リクエストあたりのタイムアウト
+const AI_MAX_OUTPUT_TOKENS = 800;  // JSONは短いので出力トークン上限を抑える（項目が途中で切れない範囲）
+
 // このツールを外部サイト（GitHub Pages等）で公開して使う場合、Gemini APIへは
 // ユーザー自身のAPIキーが必要（ブラウザから直接呼び出す構成のため）。
 function hasGeminiApiKey(){
@@ -1111,30 +1119,74 @@ function extractJsonFromText(text){
   throw new Error('AIの応答をJSONとして解釈できませんでした');
 }
 
+function sleep(ms){ return new Promise(resolve => setTimeout(resolve, ms)); }
+
+// Gemini APIへリクエストを送信する。一時的なエラー（429/5xx/タイムアウト/ネットワークエラー）は
+// 指数バックオフ（1秒→2秒→4秒）で最大 AI_MAX_RETRIES 回リトライする。
+// 400/401/403（設定・入力の問題である可能性が高い）はリトライしない。
+// AbortControllerでリクエストごとにタイムアウト（AI_TIMEOUT_MS）を設定する。
+async function fetchGeminiWithRetry(body){
+  for(let attempt = 0; attempt <= AI_MAX_RETRIES; attempt++){
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+    let response = null, networkError = null;
+    try{
+      response = await fetch(geminiEndpoint(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+    }catch(e){
+      networkError = e;
+    }finally{
+      clearTimeout(timer);
+    }
+
+    if(response && response.ok) return response;
+
+    let canRetry = false;
+    let errorMessage = '';
+    if(response){
+      canRetry = [429,500,502,503,504].includes(response.status);
+      errorMessage = await describeGeminiError(response);
+    }else if(networkError){
+      canRetry = true; // タイムアウト・ネットワークエラーはリトライ対象
+      errorMessage = (networkError.name === 'AbortError')
+        ? 'Gemini APIへのリクエストがタイムアウトしました（60秒）'
+        : ('ネットワークエラー: ' + networkError.message);
+    }
+
+    if(!canRetry || attempt === AI_MAX_RETRIES){
+      throw new Error(errorMessage);
+    }
+    await sleep(Math.pow(2, attempt) * 1000); // 1秒 → 2秒 → 4秒
+  }
+}
+
 // 画像（複数枚）とプロンプトをGeminiへ送信し、解析結果のJSONを返す共通処理。
 // AIはこの認識処理だけを担当し、CSVやHTML・商品名の生成には一切関与しない。
 async function callGeminiVisionJson(promptText, images){
+  // 画像取得（Storageからの取得が必要なものも含む）を並列化する。1枚ずつ待たない。
+  const durls = await Promise.all(images.map(img => getImageDataUrl(img)));
+
   const parts = [{ text: promptText }];
-  for(const img of images){
-    const durl = await getImageDataUrl(img);
-    if(!durl) continue;
+  durls.forEach(durl => {
+    if(!durl) return;
     const match = /^data:(image\/[a-zA-Z]+);base64,(.*)$/.exec(durl);
     if(match) parts.push({ inline_data: { mime_type: match[1], data: match[2] } });
-  }
-
-  const response = await fetch(geminiEndpoint(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] },
-      contents: [{ role: 'user', parts }],
-      generationConfig: { responseMimeType: 'application/json' }
-    })
   });
 
-  if(!response.ok){
-    throw new Error(await describeGeminiError(response));
-  }
+  const response = await fetchGeminiWithRetry({
+    systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] },
+    contents: [{ role: 'user', parts }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      temperature: 0,               // OCR・分類タスクのため安定性を優先
+      maxOutputTokens: AI_MAX_OUTPUT_TOKENS
+    }
+  });
+
   const data = await response.json();
   const candidate = (data.candidates || [])[0];
   const textPart = candidate && candidate.content && (candidate.content.parts || []).find(p => typeof p.text === 'string');
@@ -1142,20 +1194,29 @@ async function callGeminiVisionJson(promptText, images){
   return extractJsonFromText(textPart.text);
 }
 
-async function runAiAnalysis(product){
+// options.maxImages: 送信する画像の最大枚数（単品解析=10枚, 一括解析=5枚）
+// options.silent: trueの場合、この関数内ではrender()を呼ばない（一括解析側でまとめて間引いて描画するため）
+async function runAiAnalysis(product, options){
+  options = options || {};
+  const maxImages = options.maxImages || AI_MAX_IMAGES_SINGLE;
+  const silent = !!options.silent;
+
   if(!product.images.length){
-    showToast('画像をアップロードしてから解析してください');
+    if(!silent) showToast('画像をアップロードしてから解析してください');
     return false;
   }
   if(!hasGeminiApiKey()){
-    showToast('AI解析にはGoogle Gemini APIキーの設定が必要です（設定 → AI設定）');
+    if(!silent) showToast('AI解析にはGoogle Gemini APIキーの設定が必要です（設定 → AI設定）');
     return false;
+  }
+  if(product.aiStatus === 'loading'){
+    return false; // 二重解析を防止（一括解析中に個別ボタンが押された場合など）
   }
   product.aiStatus = 'loading';
   product.aiError = '';
-  render();
+  if(!silent) render();
   try{
-    const imagesToSend = product.images.slice(0,10);
+    const imagesToSend = product.images.slice(0, maxImages);
     const parsed = await callGeminiVisionJson(
       'これらは同一商品の写真です（本体・銘板の接写・別アングルなどを含みます）。すべての画像を突き合わせて確認し、型番・メーカー・製造年の文字情報と、商品カテゴリ（掃除機か炊飯器か、その種類）の視覚的な分類の両方を行ってください。',
       imagesToSend
@@ -1186,8 +1247,9 @@ async function runAiAnalysis(product){
     product.aiError = 'Gemini AI解析に失敗しました。手動で型番・メーカー・製造年を入力してください（' + e.message + '）';
     return false;
   }finally{
-    render();
+    if(!silent) render();
   }
+
 }
 
 /* ---------- 6. 商品名生成 / 説明文プレースホルダー置換エンジン ---------- */
@@ -2483,32 +2545,63 @@ function handleAction(action, el, e){
 
 /* ---------- 10. 一括AI解析（進捗表示） ---------- */
 
+// Concurrency Pool方式：常に最大 concurrency 件を同時実行し、1件終わり次第すぐ次を投入する
+// （100〜1000件をPromise.allで一気に投げるようなことはしない）。
+async function runWithConcurrency(items, worker, concurrency){
+  let index = 0;
+  async function runner(){
+    while(true){
+      const currentIndex = index++;
+      if(currentIndex >= items.length) return;
+      await worker(items[currentIndex], currentIndex);
+    }
+  }
+  const workers = [];
+  for(let i = 0; i < Math.min(concurrency, items.length); i++){
+    workers.push(runner());
+  }
+  await Promise.all(workers);
+}
+
 async function runBatchAnalysis(){
-  const targets = state.products.filter(p=>p.aiStatus==='idle' || p.aiStatus==='error');
+  // aiStatus==='done' の商品は対象外（再解析はしない）。'loading'中の商品もWorker Poolの
+  // 対象から自然に除外される（idle/errorのみを最初にリストアップするため、二重解析は起きない）。
+  const targets = state.products.filter(p => p.aiStatus === 'idle' || p.aiStatus === 'error');
   if(!targets.length){ showToast('解析対象の商品がありません'); return; }
   if(!hasGeminiApiKey()){ showToast('AI解析にはGoogle Gemini APIキーの設定が必要です（設定 → AI設定）'); return; }
-  state.batch = { running:true, index:0, total: targets.length, stage:'準備中…', log:[] };
+
+  state.batch = { running:true, index:0, total: targets.length, stage:'AI解析中…（最大' + AI_CONCURRENCY + '件を同時処理）', log:[] };
   render();
-  for(let i=0;i<targets.length;i++){
-    const p = targets[i];
-    state.batch.index = i+1;
-    state.batch.stage = 'AI解析中…';
-    render();
-    const ok = await runAiAnalysis(p);
-    if(ok){
-      state.batch.stage = '商品名・説明文を反映中…';
+
+  let completed = 0, errorCount = 0;
+  let lastRenderAt = 0;
+  const BATCH_RENDER_INTERVAL_MS = 250;
+  function throttledRender(force){
+    const now = Date.now();
+    if(force || now - lastRenderAt >= BATCH_RENDER_INTERVAL_MS){
+      lastRenderAt = now;
       render();
-      await new Promise(r=>setTimeout(r,150));
+    }
+  }
+
+  await runWithConcurrency(targets, async (p) => {
+    const ok = await runAiAnalysis(p, { maxImages: AI_MAX_IMAGES_BATCH, silent: true }); // 一括解析は速度優先で最大5枚・render()は間引く
+    completed++;
+    if(ok){
       state.batch.log.unshift('✓ ' + (p.title || formatManagementNumber(p.managementNumber) || p.id) + ' の解析が完了しました');
     }else{
-      state.batch.log.unshift('✗ ' + (formatManagementNumber(p.managementNumber) || p.id) + ' の解析に失敗しました（手動入力が必要です）');
+      errorCount++;
+      state.batch.log.unshift('✕ ' + (formatManagementNumber(p.managementNumber) || p.id) + ' の解析に失敗しました（' + (p.aiError || '手動入力が必要です') + '）');
     }
-    render();
-  }
+    if(state.batch.log.length > 200) state.batch.log.length = 200; // ログ肥大化によるUI遅延を防ぐ
+    state.batch.index = completed;
+    throttledRender();
+  }, AI_CONCURRENCY);
+
   state.batch.running = false;
   state.batch.stage = '完了しました';
-  render();
-  showToast('一括解析が完了しました');
+  throttledRender(true); // 最終結果は必ず描画する
+  showToast('一括解析が完了しました（成功 ' + (completed - errorCount) + '件 / エラー ' + errorCount + '件）');
 }
 
 /* ---------- 11. INIT ---------- */

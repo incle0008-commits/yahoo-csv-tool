@@ -2213,7 +2213,6 @@ function render(){
 
   app.innerHTML = `
     ${renderTopbar()}
-    ${renderStatsBar()}
     <div class="main-shell">
       ${renderSidebar()}
       ${state.view==='csv' ? renderCsvView() : renderMain()}

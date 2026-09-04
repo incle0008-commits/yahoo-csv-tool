@@ -34,6 +34,11 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);}
 .icon-btn{background:var(--surface);border:1px solid var(--line-strong);color:var(--ink-soft);border-radius:var(--radius-s);padding:6px 10px;font-size:12px;display:flex;align-items:center;gap:5px;}
 .icon-btn:hover{border-color:var(--ink-soft);background:var(--surface-2);}
 .icon-btn.hi{border-color:var(--accent);color:var(--accent-dark);background:var(--accent-soft);}
+.stats-bar{background:var(--surface);border-bottom:1px solid var(--line-strong);padding:8px 18px;display:flex;gap:0;overflow-x:auto;}
+.stat-item{display:flex;flex-direction:column;padding:0 22px 0 0;margin-right:22px;border-right:1px solid var(--line);flex:none;}
+.stat-item:last-child{border-right:none;margin-right:0;}
+.stat-value{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--ink);line-height:1.2;}
+.stat-label{font-size:10.5px;color:var(--ink-faint);margin-top:1px;}
 .progress-strip{background:var(--surface-2);border-bottom:1px solid var(--line);padding:6px 18px;display:flex;overflow-x:auto;}
 .progress-step{display:flex;align-items:center;gap:6px;padding:2px 12px 2px 0;color:var(--ink-faint);font-size:11px;white-space:nowrap;flex:none;}
 .progress-step .n{width:16px;height:16px;border-radius:50%;border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-family:var(--mono);font-weight:600;flex:none;}
@@ -43,7 +48,26 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);}
 .progress-step:after{content:'';width:16px;height:1px;background:var(--line-strong);margin-left:6px;}
 .progress-step:last-child:after{display:none;}
 .main-shell{flex:1;display:flex;min-height:0;}
-.sidebar{width:264px;flex:none;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;}
+.sidebar{width:340px;flex:none;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;}
+.list-controls{padding:8px 10px 0;display:flex;flex-direction:column;gap:5px;}
+.list-controls input[type=text]{width:100%;padding:5px 8px;border:1px solid var(--line-strong);border-radius:var(--radius-s);font-size:12px;}
+.list-controls-row{display:flex;gap:4px;}
+.list-controls-row select{flex:1;min-width:0;padding:4px 4px;border:1px solid var(--line-strong);border-radius:var(--radius-s);font-size:11px;background:#fff;}
+.sort-dir-btn{flex:none;padding:4px 8px;border:1px solid var(--line-strong);border-radius:var(--radius-s);background:#fff;font-size:11px;color:var(--ink-soft);}
+.sort-dir-btn:hover{border-color:var(--ink-soft);}
+.product-table{width:100%;border-collapse:collapse;table-layout:fixed;}
+.product-table th{font-size:9.5px;color:var(--ink-faint);text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-weight:600;position:sticky;top:0;background:var(--surface);}
+.product-row{cursor:pointer;border-bottom:1px solid var(--line);}
+.product-row:hover{background:var(--surface-2);}
+.product-row.selected{background:var(--accent-soft);}
+.product-table td{padding:5px 6px;vertical-align:middle;}
+.product-table-thumb{width:34px;}
+.product-table-main{overflow:hidden;}
+.product-table-status{width:74px;text-align:right;white-space:nowrap;}
+.product-table-status .export-badge{display:block;margin-bottom:2px;text-align:center;}
+.product-table-status .status-dot{display:inline-block;margin-top:1px;}
+.product-table-del{width:20px;}
+.product-table-empty{padding:16px 10px;color:var(--ink-faint);font-size:11.5px;text-align:center;}
 .sidebar-head{padding:10px 12px 8px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
 .sidebar-head h2{font-size:11.5px;margin:0;color:var(--ink-soft);font-weight:700;}
 .add-product-btn{border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-soft);border-radius:var(--radius-s);padding:7px;margin:8px 10px 4px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:5px;}
@@ -84,6 +108,8 @@ input,select,textarea{font-family:inherit;font-size:13px;color:var(--ink);}
 .field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--accent-soft);outline-offset:0;border-color:var(--accent);}
 .field textarea{resize:vertical;min-height:60px;line-height:1.6;}
 .prefixed-input{display:flex;align-items:stretch;}
+.radio-row{display:flex;gap:12px;padding:6px 0;}
+.radio-option{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink);cursor:pointer;}
 
 .prefixed-input .prefix-chip{display:flex;align-items:center;padding:0 10px;background:var(--surface-2);border:1px solid var(--line-strong);border-right:none;border-radius:var(--radius-s) 0 0 var(--radius-s);color:var(--ink-soft);font-family:var(--mono);font-weight:700;font-size:13px;white-space:nowrap;}
 .prefixed-input input{border-radius:0 var(--radius-s) var(--radius-s) 0 !important;}
@@ -873,7 +899,7 @@ function generateRiceCookerTitle(product){
   const model = product.info.modelNumber || '';
   const maker = product.info.manufacturer || '';
   const typeLabel = riceCookerTypeLabelFromCategory(product.categoryId);
-  const capacity = (product.riceCookerCapacity && product.riceCookerCapacity !== '合数不明')
+  const capacity = (product.riceCookerCapacity && product.riceCookerCapacity !== '容量確認要')
     ? ('(' + product.riceCookerCapacity + '炊き)') : '';
   const year = product.info.productionYear ? (product.info.productionYear + '年製') : '';
 
@@ -914,7 +940,8 @@ let state = {
     includeImagesInCsv: true, // 画像をBase64としてCSVへ埋め込むか
     csvImageCount: 10, // CSVへ埋め込む画像の最大枚数（1〜10）
     anthropicApiKey: '', // 旧設定（Gemini移行後は未使用。過去の保存データとの互換性のため残置）
-    geminiApiKey: '' // AI解析用のGoogle Gemini APIキー（外部公開時はユーザー自身のキーが必要）
+    geminiApiKey: '', // AI解析用のGoogle Gemini APIキー（外部公開時はユーザー自身のキーが必要）
+    aiConcurrency: 5 // 一括解析の同時実行数（Worker Pool方式。設定画面から変更可能）
   },
   selectedProductId: null,
   activeTab: 'images', // images | mgmt | ai | desc
@@ -932,7 +959,10 @@ let state = {
   filterMode: 'all', // all | thisDevice | unexported | exported
   selectedForExport: new Set(),
   reexportConfirmIds: null, // 出力済み商品を再出力しようとした時の確認対象ID一覧（null=確認不要）
-  hideExportedFromList: false // trueの場合、出力済み商品を左の商品一覧・CSVビューから隠す（出力成功直後にtrueになる）
+  hideExportedFromList: false, // trueの場合、出力済み商品を左の商品一覧・CSVビューから隠す（出力成功直後にtrueになる）
+  listSearchQuery: '', // 商品一覧の検索キーワード（管理番号・型番・商品名を対象）
+  listSortKey: 'updatedAt', // updatedAt | managementNumber | modelNumber | title
+  listSortDir: 'desc' // asc | desc
 };
 
 CSV_COLUMNS.forEach(c => { if(c.type==='fixed') state.settings.fixedValues[c.key] = c.default; });
@@ -962,7 +992,7 @@ function newProduct(){
     suctionCheck: '〇', // 吸い込みに問題がないか（〇／×）
     vacuumNote: '',      // 備考
     // ---- 炊飯器専用（カテゴリーが炊飯器の場合のみ使用） ----
-    riceCookerCapacity: '', // AI解析結果（例："5.5合"）。未解析時は空、AIが判定不能なら"合数不明"
+    riceCookerCapacity: '', // AI解析結果（例："5.5合"）。未解析時は空、AIが判定不能なら"容量確認要"
     riceCookerNote: '',     // 備考
     shippingSize: '',       // "100サイズ" | "140サイズ"（合数から自動設定。手動変更した場合はそちらを優先）
     shippingSizeManual: false, // trueの場合、合数が変わっても自動上書きしない
@@ -978,7 +1008,7 @@ function newProduct(){
 
 // 合数(例:"5.5合")から箱サイズを自動判定する。判定できない場合はnull。
 function capacityToShippingSize(capacityStr){
-  if(!capacityStr || capacityStr === '合数不明') return null;
+  if(!capacityStr || capacityStr === '容量確認要') return null;
   const num = parseFloat(String(capacityStr).replace(/[^0-9.]/g, ''));
   if(isNaN(num)) return null;
   return num <= 5.5 ? '100サイズ' : '140サイズ';
@@ -1504,7 +1534,7 @@ const AI_SYSTEM_PROMPT =
 const GEMINI_MODEL = 'gemini-3.5-flash';
 
 // 高速化パラメータ
-const AI_CONCURRENCY = 5;          // 一括解析の同時実行数（Worker Pool方式。無制限のPromise.allは行わない）
+const AI_CONCURRENCY_DEFAULT = 5;  // 一括解析の同時実行数の初期値（設定画面の state.settings.aiConcurrency で変更可能）
 const AI_MAX_IMAGES_SINGLE = 10;   // 単品解析：精度優先で最大10枚
 const AI_MAX_IMAGES_BATCH = 5;     // 一括解析：速度優先で最大5枚（商品の画像が5枚以下ならその枚数のまま）
 const AI_MAX_RETRIES = 3;          // 429/5xx/タイムアウト/ネットワークエラー時の最大リトライ回数
@@ -1697,7 +1727,7 @@ async function runAiAnalysis(product, options){
 
     // 炊飯器の合数（AIが判定できた場合のみ反映。型番の数字だけからの機械的判定はプロンプト側で禁止している）
     if(parsed.applianceType === '炊飯器'){
-      product.riceCookerCapacity = parsed.riceCookerCapacity || '合数不明';
+      product.riceCookerCapacity = parsed.riceCookerCapacity || '容量確認要';
       if(!product.shippingSizeManual){
         const autoSize = capacityToShippingSize(product.riceCookerCapacity);
         if(autoSize) product.shippingSize = autoSize;
@@ -2094,6 +2124,37 @@ async function downloadAuctownReadyZip(targetProducts){
 
 // ============ PC向け：絞り込み・複数選択・選択商品のZIP出力 ============
 
+// 商品一覧（左サイドバー）用：表示対象の絞り込み・検索・並び替え
+function getSidebarProducts(){
+  let list = getVisibleProducts();
+  const q = state.listSearchQuery.trim().toLowerCase();
+  if(q){
+    list = list.filter(p => {
+      const mgmt = formatManagementNumber(p.managementNumber).toLowerCase();
+      const model = (p.info.modelNumber || '').toLowerCase();
+      const title = (p.title || '').toLowerCase();
+      return mgmt.indexOf(q) >= 0 || model.indexOf(q) >= 0 || title.indexOf(q) >= 0;
+    });
+  }
+  if(state.filterMode === 'thisDevice') list = list.filter(p => p.createdByDeviceId === state.deviceId);
+  else if(state.filterMode === 'unexported') list = list.filter(p => p.exportStatus !== 'exported');
+  else if(state.filterMode === 'exported') list = list.filter(p => p.exportStatus === 'exported');
+
+  const dir = state.listSortDir === 'asc' ? 1 : -1;
+  const key = state.listSortKey;
+  list = list.slice().sort((a, b) => {
+    let av, bv;
+    if(key === 'managementNumber'){ av = a.managementNumber || ''; bv = b.managementNumber || ''; }
+    else if(key === 'modelNumber'){ av = a.info.modelNumber || ''; bv = b.info.modelNumber || ''; }
+    else if(key === 'title'){ av = a.title || ''; bv = b.title || ''; }
+    else { av = a.updatedAt || 0; bv = b.updatedAt || 0; }
+    if(av < bv) return -1 * dir;
+    if(av > bv) return 1 * dir;
+    return 0;
+  });
+  return list;
+}
+
 function getVisibleProducts(){
   // hideExportedFromList: 出力成功直後、出力済み商品を一覧から隠す（データは削除しない。フィルターで「出力済み」を
   // 選べばいつでも再表示できる）。Firestoreとのリアルタイム同期と競合しないよう、実データは消さない設計にしている。
@@ -2152,7 +2213,7 @@ function render(){
 
   app.innerHTML = `
     ${renderTopbar()}
-    ${renderProgressStrip()}
+    ${renderStatsBar()}
     <div class="main-shell">
       ${renderSidebar()}
       ${state.view==='csv' ? renderCsvView() : renderMain()}
@@ -2222,6 +2283,25 @@ function renderTopbar(){
   </div>`;
 }
 
+function renderStatsBar(){
+  const total = state.products.length;
+  const unanalyzed = state.products.filter(p => p.aiStatus === 'idle' || p.aiStatus === 'error').length;
+  const analyzed = state.products.filter(p => p.aiStatus === 'done').length;
+  const exported = state.products.filter(p => p.exportStatus === 'exported').length;
+  const ready = state.products.filter(p => p.exportStatus !== 'exported' && computeErrors(p).errors.length === 0).length;
+  const stats = [
+    { label:'総商品数', value: total },
+    { label:'未解析', value: unanalyzed },
+    { label:'解析済み', value: analyzed },
+    { label:'出品準備完了', value: ready },
+    { label:'出品済み', value: exported }
+  ];
+  return `
+  <div class="stats-bar">
+    ${stats.map(s => `<div class="stat-item"><span class="stat-value">${s.value}</span><span class="stat-label">${s.label}</span></div>`).join('')}
+  </div>`;
+}
+
 function renderProgressStrip(){
   const map = { images:0, mgmt:1, ai:2 };
   const currentIdx = state.view==='csv' ? 6 : (map[state.activeTab] !== undefined ? map[state.activeTab] : (state.activeTab==='desc' ? 5 : 0));
@@ -2236,15 +2316,38 @@ function renderProgressStrip(){
 }
 
 function renderSidebar(){
-  const visible = getVisibleProducts();
-  const hiddenCount = state.products.length - visible.length;
+  const listed = getSidebarProducts();
+  const hiddenCount = state.products.length - getVisibleProducts().length;
   return `
   <div class="sidebar">
-    <div class="sidebar-head"><h2>商品一覧（${visible.length}件）</h2></div>
-    <button class="add-product-btn" data-action="add-product">＋ 商品を追加</button>
-    ${hiddenCount > 0 ? `<button class="add-product-btn" style="border-style:solid;" data-action="show-exported-list">出力済み${hiddenCount}件を表示する</button>` : ''}
+    <div class="sidebar-head"><h2>商品一覧（${listed.length}件）</h2></div>
+    <div class="list-controls">
+      <input type="text" id="list-search-input" data-action="edit-list-search" value="${escapeAttr(state.listSearchQuery)}" placeholder="管理番号・型番・商品名で検索">
+      <div class="list-controls-row">
+        <select data-action="set-filter-select">
+          <option value="all" ${state.filterMode==='all'?'selected':''}>すべて</option>
+          <option value="thisDevice" ${state.filterMode==='thisDevice'?'selected':''}>この端末</option>
+          <option value="unexported" ${state.filterMode==='unexported'?'selected':''}>未出品</option>
+          <option value="exported" ${state.filterMode==='exported'?'selected':''}>出品済み</option>
+        </select>
+        <select data-action="set-sort-key">
+          <option value="updatedAt" ${state.listSortKey==='updatedAt'?'selected':''}>更新順</option>
+          <option value="managementNumber" ${state.listSortKey==='managementNumber'?'selected':''}>管理番号順</option>
+          <option value="modelNumber" ${state.listSortKey==='modelNumber'?'selected':''}>型番順</option>
+          <option value="title" ${state.listSortKey==='title'?'selected':''}>商品名順</option>
+        </select>
+        <button class="sort-dir-btn" data-action="toggle-sort-dir" title="並び順を反転">${state.listSortDir==='asc'?'昇順':'降順'}</button>
+      </div>
+    </div>
+    <button class="add-product-btn" data-action="add-product">商品追加</button>
+    ${hiddenCount > 0 ? `<button class="add-product-btn" data-action="show-exported-list">出品済み${hiddenCount}件を表示</button>` : ''}
     <div class="product-list">
-      ${visible.map(p=>renderProductListItem(p)).join('') || `<div style="padding:20px 10px;color:var(--ink-faint);font-size:12px;">${hiddenCount>0 ? '出力済みの商品のみです。' : 'まだ商品がありません。「＋ 商品を追加」から始めてください。'}</div>`}
+      <table class="product-table">
+        <thead><tr><th></th><th>商品</th><th>状態</th><th></th></tr></thead>
+        <tbody>
+          ${listed.map(p=>renderProductListItem(p)).join('') || `<tr><td colspan="4" class="product-table-empty">${hiddenCount>0 ? '出品済みの商品のみです。' : (state.listSearchQuery ? '該当する商品がありません。' : '商品がありません。「商品追加」から登録してください。')}</td></tr>`}
+        </tbody>
+      </table>
     </div>
     <div class="sidebar-foot">
       <button data-action="goto-csv">出品データ確認へ</button>
@@ -2259,16 +2362,24 @@ function renderProductListItem(p){
   if(errors.length) statusClass='err'; else if(warnings.length) statusClass='warn';
   const main = p.images.find(im=>im.isMain) || p.images[0];
   const sel = p.id===state.selectedProductId && state.view==='editor';
+  const aiLabel = p.aiStatus==='done' ? '解析済' : (p.aiStatus==='loading' ? '解析中' : (p.aiStatus==='error' ? 'エラー' : '未解析'));
+  const aiClass = p.aiStatus==='done' ? 'exported' : (p.aiStatus==='error' ? '' : 'unexported');
+  const exportLabel = p.exportStatus==='exported' ? '出品済' : '未出品';
+  const exportClass = p.exportStatus==='exported' ? 'exported' : 'unexported';
   return `
-  <div class="product-item ${sel?'selected':''}" data-action="select-product" data-id="${p.id}">
-    <div class="product-thumb" style="${main?`background-image:url('${main.dataUrl || main.downloadURL || ''}')`:''}">${main?'':'No Img'}</div>
-    <div class="product-item-text">
-      <div class="product-item-title">${escapeHtml(p.title) || '（商品名未設定）'}</div>
-      <div class="product-item-meta">${p.images.length}枚${p.managementNumber ? ' ・ ' + escapeHtml(formatManagementNumber(p.managementNumber)) : ''}</div>
-    </div>
-    <span class="status-dot ${statusClass}" title="${statusClass==='err'?'要修正項目あり':statusClass==='warn'?'確認推奨':'OK'}"></span>
-    <button class="del-btn" data-action="delete-product" data-id="${p.id}" title="削除">✕</button>
-  </div>`;
+  <tr class="product-row ${sel?'selected':''}" data-action="select-product" data-id="${p.id}">
+    <td class="product-table-thumb"><div class="product-thumb" style="${main?`background-image:url('${main.dataUrl || main.downloadURL || ''}')`:''}">${main?'':'−'}</div></td>
+    <td class="product-table-main">
+      <div class="product-item-title">${escapeHtml(formatManagementNumber(p.managementNumber)) || '（管理番号未設定）'} ${escapeHtml(p.info.modelNumber || '')}</div>
+      <div class="product-item-meta">${escapeHtml(p.title) || '（商品名未設定）'}</div>
+    </td>
+    <td class="product-table-status">
+      <span class="export-badge ${aiClass}">${aiLabel}</span>
+      <span class="export-badge ${exportClass}">${exportLabel}</span>
+      ${errors.length ? `<span class="status-dot err" title="要修正項目あり"></span>` : (warnings.length ? `<span class="status-dot warn" title="確認推奨"></span>` : '')}
+    </td>
+    <td class="product-table-del"><button class="del-btn" data-action="delete-product" data-id="${p.id}" title="削除">✕</button></td>
+  </tr>`;
 }
 
 function renderBatchBanner(){
@@ -2409,14 +2520,14 @@ function renderApplianceSpecificFields(p){
           <input type="text" data-action="edit-rice-capacity" value="${escapeAttr(p.riceCookerCapacity)}" placeholder="例：5.5合">
           <p class="hint">現在の値：${escapeHtml(capacityLabel)}</p>
         </div>
-        <div class="field" style="max-width:220px;">
+        <div class="field" style="max-width:260px;">
           <label>箱サイズ</label>
-          <select data-action="edit-shipping-size">
-            <option value="" ${!p.shippingSize?'selected':''}>未設定</option>
-            <option value="100サイズ" ${p.shippingSize==='100サイズ'?'selected':''}>100サイズ</option>
-            <option value="140サイズ" ${p.shippingSize==='140サイズ'?'selected':''}>140サイズ</option>
-          </select>
-          <p class="hint">${p.shippingSizeManual ? '手動設定中（合数を変更しても自動では変わりません）' : '合数から自動設定されます'}</p>
+          <div class="radio-row">
+            <label class="radio-option"><input type="radio" name="shipSize-${p.id}" data-action="set-shipping-size-mode" data-value="auto" ${!p.shippingSizeManual?'checked':''}> 自動</label>
+            <label class="radio-option"><input type="radio" name="shipSize-${p.id}" data-action="set-shipping-size-mode" data-value="100サイズ" ${p.shippingSizeManual && p.shippingSize==='100サイズ'?'checked':''}> 100サイズ</label>
+            <label class="radio-option"><input type="radio" name="shipSize-${p.id}" data-action="set-shipping-size-mode" data-value="140サイズ" ${p.shippingSizeManual && p.shippingSize==='140サイズ'?'checked':''}> 140サイズ</label>
+          </div>
+          <p class="hint">現在の箱サイズ：${escapeHtml(p.shippingSize || '未確定')}${p.shippingSizeManual ? '（手動指定）' : '（自動判定）'}</p>
         </div>
       </div>
       <div class="field" style="margin-top:8px;">
@@ -2763,6 +2874,11 @@ function renderAiSettings(){
     <button class="btn" data-action="ai-test">接続テスト</button>
     <span id="ai-test-result" class="hint"></span>
   </div>
+  <div class="field" style="max-width:160px;">
+    <label>同時解析数</label>
+    <input type="number" min="1" max="20" data-action="edit-ai-concurrency" value="${escapeAttr(state.settings.aiConcurrency)}">
+    <p class="hint">一括解析で同時に処理する商品数です。APIの利用制限に応じて調整してください（初期値：5）。</p>
+  </div>
   <p class="hint">AI認識に失敗した場合や、APIキーを設定しない場合でも、「③ 商品情報」タブから型番・メーカー・製造年を直接手入力すれば、CSV作成まで問題なく進められます。</p>
   `;
 }
@@ -3025,10 +3141,17 @@ function handleAction(action, el, e){
       scheduleSaveProduct(p.id); render();
       break;
     }
-    case 'edit-shipping-size': {
+    case 'set-shipping-size-mode': {
       if(!p) return;
-      p.shippingSize = el.value;
-      p.shippingSizeManual = true; // 手動変更した以上、以後は合数変更で自動上書きしない
+      const mode = el.getAttribute('data-value');
+      if(mode === 'auto'){
+        p.shippingSizeManual = false;
+        const autoSize = capacityToShippingSize(p.riceCookerCapacity);
+        if(autoSize) p.shippingSize = autoSize;
+      }else{
+        p.shippingSizeManual = true;
+        p.shippingSize = mode;
+      }
       regenerateAll(p);
       scheduleSaveProduct(p.id); render();
       break;
@@ -3068,6 +3191,29 @@ function handleAction(action, el, e){
     case 'set-filter': {
       state.filterMode = el.getAttribute('data-filter');
       render();
+      break;
+    }
+    case 'set-filter-select': {
+      state.filterMode = el.value;
+      render();
+      break;
+    }
+    case 'set-sort-key': {
+      state.listSortKey = el.value;
+      render();
+      break;
+    }
+    case 'toggle-sort-dir': {
+      state.listSortDir = state.listSortDir === 'asc' ? 'desc' : 'asc';
+      render();
+      break;
+    }
+    case 'edit-list-search': {
+      state.listSearchQuery = el.value;
+      const cursorPos = el.selectionStart;
+      render();
+      const newEl = document.getElementById('list-search-input');
+      if(newEl){ newEl.focus(); try{ newEl.setSelectionRange(cursorPos, cursorPos); }catch(e){ /* 無視 */ } }
       break;
     }
     case 'toggle-select-export': {
@@ -3140,6 +3286,14 @@ function handleAction(action, el, e){
       scheduleSaveSettings();
       break;
     }
+    case 'edit-ai-concurrency': {
+      let v = parseInt(el.value, 10);
+      if(isNaN(v)) v = AI_CONCURRENCY_DEFAULT;
+      v = Math.max(1, Math.min(20, v));
+      state.settings.aiConcurrency = v;
+      scheduleSaveSettings();
+      break;
+    }
     default: break;
   }
 }
@@ -3171,7 +3325,8 @@ async function runBatchAnalysis(){
   if(!targets.length){ showToast('解析対象の商品がありません'); return; }
   if(!hasGeminiApiKey()){ showToast('AI解析にはGoogle Gemini APIキーの設定が必要です（設定 → AI設定）'); return; }
 
-  state.batch = { running:true, index:0, total: targets.length, stage:'AI解析中…（最大' + AI_CONCURRENCY + '件を同時処理）', log:[] };
+  const concurrency = Math.max(1, Math.min(20, state.settings.aiConcurrency || AI_CONCURRENCY_DEFAULT));
+  state.batch = { running:true, index:0, total: targets.length, stage:'解析中（同時' + concurrency + '件）', log:[] };
   render();
 
   let completed = 0, errorCount = 0;
@@ -3197,7 +3352,7 @@ async function runBatchAnalysis(){
     if(state.batch.log.length > 200) state.batch.log.length = 200; // ログ肥大化によるUI遅延を防ぐ
     state.batch.index = completed;
     throttledRender();
-  }, AI_CONCURRENCY);
+  }, concurrency);
 
   state.batch.running = false;
   state.batch.stage = '完了しました';
